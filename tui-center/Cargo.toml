@@ -1,0 +1,11 @@
+[package]
+name = "tui-center"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ratatui = "0.26.0"
+crossterm = "0.27.0"
+sysinfo = "0.38.3"
+chrono = "0.4.44"
+strip-ansi-escapes = "0.2.1"
