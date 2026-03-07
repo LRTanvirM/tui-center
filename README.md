@@ -13,7 +13,7 @@ Built with **Rust** and **Ratatui**, this Control Center transforms your termina
 * **Stateful Navigation:** Smoothly switch focus between the **Status Bar**, **Main Workspace**, and **App Bar** using `Tab`.
 * **Dynamic Theming:** Instant switching between high-contrast dark themes (**Nord**, **Dracula**, and **Gruvbox**) by pressing `t`.
 * **Live System Stats:** Real-time monitoring of local time, RAM usage, and system uptime.
-* **Integrated App Launcher:** Launch your favorite TUI and GUI apps (Brave, Pacseek, Wikipedia, etc.) directly from the interface.
+* **Integrated App Launcher:** Launch your favorite TUI and GUI apps (Browser, Pacseek, Wikipedia, etc.) directly from the interface.
 * **System Info Pane:** A dedicated toggleable pane (`f`) that displays clean, formatted system information via `fastfetch`.
 * **Customizable:** Easily add or delete applications from the Workspace or App Bar through the built-in interactive Settings menu (`Esc`).
 * **Global Hotkeys:** Press `1-9` at any time to instantly trigger apps in your bottom dock.
