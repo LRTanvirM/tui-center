@@ -27,7 +27,7 @@ This dashboard acts as a central hub for other terminal utilities. For the best 
 | Category | Apps |
 | --- | --- |
 | **System** | `btop`, `fastfetch`, `curl`, `tclock` |
-| **Internet** | `brave`, `wiki-tui`, `gophertube`, `endcord` |
+| **Internet** | `wiki-tui`, `gophertube`, `endcord` |
 | **Media** | `termusic`, `soundscope`, `viu-media` |
 | **Files** | `spf` (Superfile), `pacseek` (Arch/CachyOS) |
 
