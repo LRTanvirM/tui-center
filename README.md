@@ -2,6 +2,8 @@
 
 **A high-performance, themeable terminal dashboard for Linux power users.**
 
+![Dashboard Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/screenshot.png)
+
 Built with **Rust** and **Ratatui**, this Control Center transforms your terminal into a fully interactive desktop-style environment. It features a live system status bar, a dynamic application launcher, and integrated system information—all while remaining blazingly fast and light on resources.
 
 ---
