@@ -238,6 +238,9 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 }
 
 fn main() -> io::Result<()> {
+    // Tell the dashboard to ignore OS-level Ctrl+C kill signals!
+    let _ = ctrlc::set_handler(|| {});
+
     enable_raw_mode()?;
     stdout().execute(EnterAlternateScreen)?;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
@@ -325,12 +328,20 @@ fn main() -> io::Result<()> {
                             };
 
                             if !cmd.is_empty() {
-                                disable_raw_mode()?;
-                                stdout().execute(LeaveAlternateScreen)?;
+                                // 1. Suspend the dashboard's terminal control
+                                // We use .ok() or let _ = to prevent a crash from stopping the recovery chain
+                                let _ = disable_raw_mode();
+                                let _ = stdout().execute(LeaveAlternateScreen);
+
+                                // 2. Launch the child process
                                 let mut child = ProcessCommand::new("sh").arg("-c").arg(&cmd).spawn()?;
-                                child.wait()?;
-                                enable_raw_mode()?;
-                                stdout().execute(EnterAlternateScreen)?;
+                                let _ = child.wait();
+
+                                // 3. MANDATORY RECOVERY: Reset terminal regardless of how the app exited
+                                let _ = enable_raw_mode();
+                                let _ = stdout().execute(EnterAlternateScreen);
+
+                                // 4. Force a full hardware redraw to clear any "curses" artifacts
                                 terminal.clear()?;
                             }
                         }
