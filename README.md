@@ -22,45 +22,30 @@ Built with **Rust** and **Ratatui**, this Control Center transforms your termina
 
 ## 🛠️ Prerequisites
 
-This dashboard acts as a central hub for other terminal utilities. For the best experience, ensure the following are installed:
+This dashboard acts as a central hub for other terminal utilities. The installation script will automatically install the absolute core dependencies required for the TUI to run (`fastfetch`, `curl`, `rust`).
 
-| Category | Apps |
-| --- | --- |
-| **System** | `btop`, `fastfetch`, `curl`, `tclock` |
-| **Internet** | `wiki-tui`, `gophertube`, `endcord` |
-| **Media** | `termusic`, `soundscope`, `viu-media` |
-| **Files** | `spf` (Superfile), `pacseek` (Arch/CachyOS) |
+> **Note:** Additional optional apps (like `btop`, `pacseek`, `termusic`, etc.) will be installed via the onboarding popup from within the TUI.
 
 ---
 
 ## 🚀 Installation
+
+*Note: Currently, the installation script is optimized for Arch Linux.*
 
 ### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/LRTanvirM/tui-center.git
 cd tui-center
-
 ```
 
-### 2. Install Dependencies
+### 2. Build and Install System-Wide
 
-Run the included script to detect your distro and install core requirements:
-
-```bash
-chmod +x prerequisites.sh
-./prerequisites.sh
-
-```
-
-### 3. Build and Install System-Wide
-
-Use the installer to compile the optimized Rust binary and move it to your path:
+Run the unified installation script. This will install base prerequisites, compile the optimized Rust binary, and move it to your system path:
 
 ```bash
 chmod +x install.sh
 ./install.sh
-
 ```
 
 ---
@@ -77,6 +62,19 @@ chmod +x install.sh
 | **f** | Toggle System Info Pane |
 | **Esc** | Open Settings / Customize Apps |
 | **q** | Quit (with confirmation) |
+
+---
+
+---
+
+## 🗑️ Uninstallation
+
+If you wish to remove **tui-center** from your system, run the provided uninstallation script:
+
+```bash
+chmod +x uninstall.sh
+./uninstall.sh
+```
 
 ---
 
