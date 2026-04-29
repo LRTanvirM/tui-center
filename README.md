@@ -156,6 +156,6 @@ The uninstall script will remove the binary from system directories and clean up
 
 ## 🤝 Credits
 
-- **Author**: Tanvir & [TokiTauhid](https://github.com/tokitauhid/)
+- **Author**: [Tanvir](https://github.com/LRTanvirM) & [TokiTauhid](https://github.com/tokitauhid/)
 - **Built with**: [Ratatui](https://ratatui.rs/), [Crossterm](https://github.com/crossterm-rs/crossterm)
 - **Optimized for**: CachyOS / Arch Linux
