@@ -11,7 +11,10 @@ use ratatui::{
     widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
     Frame, Terminal,
 };
+use serde::{Deserialize, Serialize};
+use std::fs;
 use std::io::{self, stdout};
+use std::path::PathBuf;
 use std::process::Command as ProcessCommand;
 use sysinfo::System;
 use chrono::Local;
@@ -22,13 +25,18 @@ enum AppMode {
     Quitting,
     HelpPopup,
     OptionsPopup,
-    ThemePopup, // New Mode!
+    ThemePopup,
     EditMain,
     EditApp,
     DeleteConfirmMain,
     DeleteConfirmApp,
     AddAppStep(AddField),
     AddMainStep(AddField),
+    OnboardingStart,
+    OnboardingTheme,
+    OnboardingLayout,
+    OnboardingApps,
+    OnboardingComplete,
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -39,6 +47,27 @@ enum FocusPane {
     StatusBar,
     Workspace,
     AppBar,
+}
+
+#[derive(Clone)]
+struct PresetLayout {
+    name: String,
+    description: String,
+}
+
+#[derive(Clone)]
+struct SuggestedApp {
+    name: String,
+    description: String,
+    command: String,
+    selected: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct Config {
+    first_launch: bool,
+    current_theme: String,
+    default_show_sys_info: bool,
 }
 
 struct Theme {
@@ -72,7 +101,7 @@ struct MenuApp {
     
     themes: Vec<Theme>,
     current_theme: usize,
-    theme_state: ListState, // Track selection in the theme popup
+    theme_state: ListState,
 
     show_sys_info: bool,
     default_show_sys_info: bool,
@@ -84,23 +113,44 @@ struct MenuApp {
     add_name: String,
     add_desc: String,
     add_cmd: String,
+
+    config: Config,
+    config_path: PathBuf,
+    
+    layouts: Vec<PresetLayout>,
+    current_layout: usize,
+    layout_state: ListState,
+    
+    suggested_apps: Vec<SuggestedApp>,
+    suggested_state: ListState,
 }
 
 impl MenuApp {
     fn new() -> Self {
+        let config_path = Self::get_config_path();
+        let config = Self::load_config(&config_path).unwrap_or_else(|| Config {
+            first_launch: true,
+            current_theme: "Nord".to_string(),
+            default_show_sys_info: true,
+        });
+
         let mut state = ListState::default();
         state.select(Some(0));
         let mut options_state = ListState::default();
         options_state.select(Some(0));
         let mut theme_state = ListState::default();
         theme_state.select(Some(0));
+        let mut layout_state = ListState::default();
+        layout_state.select(Some(0));
+        let mut suggested_state = ListState::default();
+        suggested_state.select(Some(0));
 
         let themes = vec![
             Theme {
                 name: "Nord",
                 focus_border: Color::Cyan,
                 unfocus_border: Color::DarkGray,
-                highlight_bg: Color::Cyan, // Now applied correctly!
+                highlight_bg: Color::Cyan,
                 highlight_fg: Color::Black,
                 text_normal: Color::White,
                 text_accent: Color::LightCyan,
@@ -125,6 +175,8 @@ impl MenuApp {
             },
         ];
 
+        let current_theme = themes.iter().position(|t| t.name == config.current_theme).unwrap_or(0);
+
         let items = vec![
             AppEntry{ name: "Weather".to_string(), desc: "Show weather info".to_string(), cmd: "curl -s wttr.in/Tangail | less -R".to_string() },
             AppEntry{ name: "Clock".to_string(), desc: "Terminal Clock".to_string(), cmd: "tclock".to_string() },
@@ -146,13 +198,28 @@ impl MenuApp {
             AppEntry{ name: "Settings".to_string(), desc: "systemsettings".to_string(), cmd: "systemsettings".to_string() }, 
         ];
 
-        let default_show_sys_info = true;
+        let layouts = vec![
+            PresetLayout { name: "Default".to_string(), description: "Full featured layout with all panes".to_string() },
+            PresetLayout { name: "Compact".to_string(), description: "Minimal, focused workspace".to_string() },
+            PresetLayout { name: "Spacious".to_string(), description: "Large text and generous spacing".to_string() },
+        ];
+
+        let suggested_apps = vec![
+            SuggestedApp { name: "btop".to_string(), description: "System monitor".to_string(), command: "btop".to_string(), selected: true },
+            SuggestedApp { name: "pacseek".to_string(), description: "Package manager TUI".to_string(), command: "pacseek".to_string(), selected: true },
+            SuggestedApp { name: "termusic".to_string(), description: "Music player".to_string(), command: "termusic".to_string(), selected: false },
+            SuggestedApp { name: "viu".to_string(), description: "Image viewer".to_string(), command: "viu".to_string(), selected: false },
+        ];
+
+        let default_show_sys_info = config.default_show_sys_info;
         let sys_info_text = Self::fetch_sys_info();
+
+        let initial_mode = if config.first_launch { AppMode::OnboardingStart } else { AppMode::Normal };
 
         Self {
             items,
             state,
-            mode: AppMode::Normal,
+            mode: initial_mode,
             focus: FocusPane::Workspace,
             status_index: 0,
             app_bar_index: 0,
@@ -160,7 +227,7 @@ impl MenuApp {
             options_index: 0,
             options_state,
             themes,
-            current_theme: 0,
+            current_theme,
             theme_state,
             show_sys_info: default_show_sys_info,
             default_show_sys_info,
@@ -170,7 +237,33 @@ impl MenuApp {
             add_name: String::new(),
             add_desc: String::new(),
             add_cmd: String::new(),
+            config,
+            config_path,
+            layouts,
+            current_layout: 0,
+            layout_state,
+            suggested_apps,
+            suggested_state,
         }
+    }
+
+    fn get_config_path() -> PathBuf {
+        let config_dir = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
+        let app_config_dir = config_dir.join("tui-center");
+        if !app_config_dir.exists() {
+            let _ = fs::create_dir_all(&app_config_dir);
+        }
+        app_config_dir.join("config.json")
+    }
+
+    fn load_config(path: &PathBuf) -> Option<Config> {
+        fs::read_to_string(path).ok().and_then(|content| serde_json::from_str(&content).ok())
+    }
+
+    fn save_config(&self) -> io::Result<()> {
+        let config_json = serde_json::to_string_pretty(&self.config)?;
+        fs::write(&self.config_path, config_json)?;
+        Ok(())
     }
     
     // Fixed: Stripping ANSI escape codes so layout isn't destroyed
@@ -276,6 +369,70 @@ fn main() -> io::Result<()> {
                 }
 
                 match &app.mode {
+                    AppMode::OnboardingStart => match key.code {
+                        KeyCode::Esc => app.mode = AppMode::Normal,
+                        KeyCode::Enter => app.mode = AppMode::OnboardingTheme,
+                        _ => {}
+                    },
+                    AppMode::OnboardingTheme => match key.code {
+                        KeyCode::Esc => app.mode = AppMode::Normal,
+                        KeyCode::Up | KeyCode::Char('k') => {
+                            let i = app.theme_state.selected().unwrap_or(0);
+                            app.theme_state.select(Some(if i == 0 { app.themes.len() - 1 } else { i - 1 }));
+                        }
+                        KeyCode::Down | KeyCode::Char('j') => {
+                            let i = app.theme_state.selected().unwrap_or(0);
+                            app.theme_state.select(Some((i + 1) % app.themes.len()));
+                        }
+                        KeyCode::Enter => {
+                            if let Some(i) = app.theme_state.selected() { app.current_theme = i; }
+                            app.mode = AppMode::OnboardingLayout;
+                            app.layout_state.select(Some(0));
+                        }
+                        _ => {}
+                    },
+                    AppMode::OnboardingLayout => match key.code {
+                        KeyCode::Esc => app.mode = AppMode::OnboardingTheme,
+                        KeyCode::Up | KeyCode::Char('k') => app.prev_opt(app.layouts.len()),
+                        KeyCode::Down | KeyCode::Char('j') => app.next_opt(app.layouts.len()),
+                        KeyCode::Enter => {
+                            app.current_layout = app.options_index;
+                            app.mode = AppMode::OnboardingApps;
+                            app.suggested_state.select(Some(0));
+                            app.options_index = 0;
+                        }
+                        _ => {}
+                    },
+                    AppMode::OnboardingApps => match key.code {
+                        KeyCode::Esc => app.mode = AppMode::OnboardingLayout,
+                        KeyCode::Up | KeyCode::Char('k') => app.prev_opt(app.suggested_apps.len()),
+                        KeyCode::Down | KeyCode::Char('j') => app.next_opt(app.suggested_apps.len()),
+                        KeyCode::Char(' ') => {
+                            app.suggested_apps[app.options_index].selected = !app.suggested_apps[app.options_index].selected;
+                        }
+                        KeyCode::Enter => {
+                            for suggested in &app.suggested_apps {
+                                if suggested.selected {
+                                    app.items.push(AppEntry {
+                                        name: suggested.name.clone(),
+                                        desc: suggested.description.clone(),
+                                        cmd: suggested.command.clone(),
+                                    });
+                                }
+                            }
+                            app.mode = AppMode::OnboardingComplete;
+                        }
+                        _ => {}
+                    },
+                    AppMode::OnboardingComplete => match key.code {
+                        KeyCode::Esc | KeyCode::Enter => {
+                            app.config.first_launch = false;
+                            app.config.current_theme = app.themes[app.current_theme].name.to_string();
+                            let _ = app.save_config();
+                            app.mode = AppMode::Normal;
+                        }
+                        _ => {}
+                    },
                     AppMode::Normal => match key.code {
                         KeyCode::Char('q') => { app.mode = AppMode::Quitting; app.quit_index = 0; },
                         KeyCode::Esc => { app.mode = AppMode::OptionsPopup; app.options_index = 0; app.options_state.select(Some(0)); },
@@ -379,7 +536,7 @@ fn main() -> io::Result<()> {
                         _ => {}
                     },
                     AppMode::OptionsPopup => {
-                        let opts_len = 5;
+                        let opts_len = 6;
                         match key.code {
                             KeyCode::Esc | KeyCode::Backspace => app.mode = AppMode::Normal,
                             KeyCode::Up | KeyCode::Char('k') => app.prev_opt(opts_len),
@@ -390,7 +547,8 @@ fn main() -> io::Result<()> {
                                     1 => { app.mode = AppMode::EditApp; app.options_index = 0; app.options_state.select(Some(0)); }
                                     2 => app.show_sys_info = !app.show_sys_info,
                                     3 => { app.default_show_sys_info = !app.default_show_sys_info; app.show_sys_info = app.default_show_sys_info; }
-                                    4 => app.mode = AppMode::Normal,
+                                    4 => app.mode = AppMode::OnboardingStart,
+                                    5 => app.mode = AppMode::Normal,
                                     _ => {}
                                 }
                             }
@@ -479,12 +637,107 @@ fn main() -> io::Result<()> {
         }
     }
 
+    let _ = app.save_config();
     disable_raw_mode()?;
     stdout().execute(LeaveAlternateScreen)?;
     Ok(())
 }
 
 fn ui(f: &mut Frame, sys: &System, app: &mut MenuApp) {
+    let size = f.size();
+    let theme = &app.themes[app.current_theme];
+
+    match app.mode {
+        AppMode::OnboardingStart => {
+            let area = centered_rect(60, 50, size);
+            f.render_widget(Clear, area);
+            let popup_border_style = Style::default().fg(theme.focus_border);
+            let popup_block = Block::default()
+                .borders(Borders::ALL)
+                .border_style(popup_border_style)
+                .title(" Welcome to TUI Control Center ");
+            let content = vec![
+                Line::from(""),
+                Line::from("Welcome! Let's set up your environment."),
+                Line::from(""),
+                Line::from("This wizard will guide you through:"),
+                Line::from("  - Selecting a theme"),
+                Line::from("  - Configuring your workspace layout"),
+                Line::from("  - Adding your favorite applications"),
+                Line::from(""),
+                Line::from("Press Enter to continue or Esc to skip"),
+            ];
+            let p = Paragraph::new(content).block(popup_block).style(Style::default().fg(theme.text_normal));
+            f.render_widget(p, area);
+            return;
+        }
+        AppMode::OnboardingTheme => {
+            let area = centered_rect(40, 50, size);
+            f.render_widget(Clear, area);
+            let popup_border_style = Style::default().fg(theme.focus_border);
+            let popup_block = Block::default()
+                .borders(Borders::ALL)
+                .border_style(popup_border_style)
+                .title(" Select Your Theme ");
+            let theme_items: Vec<ListItem> = app.themes.iter().map(|t| ListItem::new(format!("  {}  ", t.name))).collect();
+            let active_style = Style::default().bg(theme.highlight_bg).fg(theme.highlight_fg).add_modifier(Modifier::BOLD);
+            let list = List::new(theme_items).block(popup_block).highlight_style(active_style).highlight_symbol(">> ");
+            f.render_stateful_widget(list, area, &mut app.theme_state);
+            return;
+        }
+        AppMode::OnboardingLayout => {
+            let area = centered_rect(50, 50, size);
+            f.render_widget(Clear, area);
+            let popup_border_style = Style::default().fg(theme.focus_border);
+            let popup_block = Block::default()
+                .borders(Borders::ALL)
+                .border_style(popup_border_style)
+                .title(" Configure Layout ");
+            let layout_items: Vec<ListItem> = app.layouts.iter().map(|l| ListItem::new(format!("  {}  ", l.name))).collect();
+            let active_style = Style::default().bg(theme.highlight_bg).fg(theme.highlight_fg).add_modifier(Modifier::BOLD);
+            let list = List::new(layout_items).block(popup_block).highlight_style(active_style).highlight_symbol(">> ");
+            f.render_stateful_widget(list, area, &mut app.options_state);
+            return;
+        }
+        AppMode::OnboardingApps => {
+            let area = centered_rect(50, 60, size);
+            f.render_widget(Clear, area);
+            let popup_border_style = Style::default().fg(theme.focus_border);
+            let popup_block = Block::default()
+                .borders(Borders::ALL)
+                .border_style(popup_border_style)
+                .title(" Select Apps (Space to toggle, Enter to finish) ");
+            let app_items: Vec<ListItem> = app.suggested_apps.iter().map(|a| {
+                let checkbox = if a.selected { "[X]" } else { "[ ]" };
+                ListItem::new(format!("{} {}", checkbox, a.name))
+            }).collect();
+            let active_style = Style::default().bg(theme.highlight_bg).fg(theme.highlight_fg).add_modifier(Modifier::BOLD);
+            let list = List::new(app_items).block(popup_block).highlight_style(active_style).highlight_symbol(">> ");
+            f.render_stateful_widget(list, area, &mut app.options_state);
+            return;
+        }
+        AppMode::OnboardingComplete => {
+            let area = centered_rect(60, 40, size);
+            f.render_widget(Clear, area);
+            let popup_border_style = Style::default().fg(theme.focus_border);
+            let popup_block = Block::default()
+                .borders(Borders::ALL)
+                .border_style(popup_border_style)
+                .title(" Setup Complete! ");
+            let content = vec![
+                Line::from(""),
+                Line::from(format!("Theme: {}", app.themes[app.current_theme].name)),
+                Line::from(format!("Layout: {}", app.layouts[app.current_layout].name)),
+                Line::from(format!("Apps added: {}", app.suggested_apps.iter().filter(|a| a.selected).count())),
+                Line::from(""),
+                Line::from("Press any key to continue..."),
+            ];
+            let p = Paragraph::new(content).block(popup_block).style(Style::default().fg(theme.text_normal));
+            f.render_widget(p, area);
+            return;
+        }
+        _ => {}
+    }
     let size = f.size();
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -615,10 +868,17 @@ fn ui(f: &mut Frame, sys: &System, app: &mut MenuApp) {
                 f.render_widget(p, area);
             },
             AppMode::OptionsPopup => {
-                let area = centered_rect(50, 40, size); f.render_widget(Clear, area); 
+                let area = centered_rect(50, 50, size); f.render_widget(Clear, area); 
                 let def_sys_text = if app.default_show_sys_info { "[X] Default Show SysInfo" } else { "[ ] Default Show SysInfo" };
                 let toggle_sys_text = if app.show_sys_info { "[-] Toggle SysInfo (F)" } else { "[+] Toggle SysInfo (F)" };
-                let settings_items = vec![ ListItem::new(" Customize Main Workspace Apps -> "), ListItem::new(" Customize App Bar Apps -> "), ListItem::new(toggle_sys_text), ListItem::new(def_sys_text), ListItem::new(" <- Back ") ];
+                let settings_items = vec![ 
+                    ListItem::new(" Customize Main Workspace Apps -> "), 
+                    ListItem::new(" Customize App Bar Apps -> "), 
+                    ListItem::new(toggle_sys_text), 
+                    ListItem::new(def_sys_text), 
+                    ListItem::new(" Run Onboarding Setup -> "),
+                    ListItem::new(" <- Back ") 
+                ];
                 let list = List::new(settings_items).block(popup_block.title(" Settings "))
                     .highlight_style(active_style).highlight_symbol(">> ");
                 f.render_stateful_widget(list, area, &mut app.options_state);
