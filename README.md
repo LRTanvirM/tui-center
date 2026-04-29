@@ -1,85 +1,161 @@
 # 🖥️ TUI Control Center
 
-**A high-performance, themeable terminal dashboard for Linux power users.**
+A high-performance, themeable terminal dashboard for Linux power users.
 
 ![Dashboard Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/screenshot.png)
 
-Built with **Rust** and **Ratatui**, this Control Center transforms your terminal into a fully interactive desktop-style environment. It features a live system status bar, a dynamic application launcher, and integrated system information—all while remaining blazingly fast and light on resources.
-
----
+TUI Control Center is a feature-rich terminal interface built with **Rust** and **Ratatui** that transforms your terminal into a fully interactive dashboard environment. It provides real-time system monitoring, application launching, and system information display while maintaining exceptional performance and minimal resource usage.
 
 ## ✨ Features
 
-* **Stateful Navigation:** Smoothly switch focus between the **Status Bar**, **Main Workspace**, and **App Bar** using `Tab`.
-* **Dynamic Theming:** Instant switching between high-contrast dark themes (**Nord**, **Dracula**, and **Gruvbox**) by pressing `t`.
-* **Live System Stats:** Real-time monitoring of local time, RAM usage, and system uptime.
-* **Integrated App Launcher:** Launch your favorite TUI and GUI apps (Browser, Pacseek, Wikipedia, etc.) directly from the interface.
-* **System Info Pane:** A dedicated toggleable pane (`f`) that displays clean, formatted system information via `fastfetch`.
-* **Customizable:** Easily add or delete applications from the Workspace or App Bar through the built-in interactive Settings menu (`Esc`).
-* **Global Hotkeys:** Press `1-9` at any time to instantly trigger apps in your bottom dock.
+- 🧭 **Stateful Navigation**: Switch focus between the Status Bar, Main Workspace, and App Bar using the Tab key
+- 🎨 **Dynamic Theming**: Select from multiple high-contrast themes (Nord, Dracula, Gruvbox) with instant switching
+- 📊 **Live System Monitoring**: Real-time display of system time, RAM usage, and system uptime
+- 🚀 **Integrated Application Launcher**: Launch both TUI and GUI applications directly from the interface
+- ℹ️ **System Information Pane**: Dedicated toggleable pane powered by fastfetch for detailed system information
+- ⚙️ **Customizable Applications**: Add or remove applications through the built-in Settings interface
+- ⌨️ **Global Hotkeys**: Quick access to applications using number keys 1-9 from the bottom dock
 
----
+## 📋 Prerequisites
 
-## 🛠️ Prerequisites
+The following packages are required to build and run TUI Control Center:
 
-This dashboard acts as a central hub for other terminal utilities. The installation script will automatically install the absolute core dependencies required for the TUI to run (`fastfetch`, `curl`, `rust`).
+| Package          | Purpose                                |
+| ---------------- | -------------------------------------- |
+| `curl`           | 🌐 Used by the Weather widget          |
+| `fastfetch`      | 📱 Powers the System Information pane  |
+| `rust` / `cargo` | 🦀 Required to compile the application |
 
-> **Note:** Additional optional apps (like `btop`, `pacseek`, `termusic`, etc.) will be installed via the onboarding popup from within the TUI.
-
----
+Note: Optional applications (btop, pacseek, termusic, etc.) can be installed through the onboarding setup inside the application.
 
 ## 🚀 Installation
 
-*Note: Currently, the installation script is optimized for Arch Linux.*
+TUI Control Center supports three installation methods. Choose the approach that best fits your workflow.
 
-### 1. Clone the Repository
+### ⚡ Option 1: Automated Installation (Recommended)
+
+For the quickest setup, use the automated installer which handles all configuration steps:
+
+```bash
+curl -sSf https://raw.githubusercontent.com/LRTanvirM/tui-center/master/install.sh | bash
+```
+
+The installer automatically:
+
+- Detects your Linux distribution
+- Installs required dependencies
+- Installs the Rust compiler (if necessary)
+- Compiles the application
+- Installs the binary system-wide
+
+### 📦 Option 2: Installation Script Method
+
+Clone the repository and execute the provided installation script:
+
+```bash
+git clone https://github.com/LRTanvirM/tui-center.git
+cd tui-center
+chmod +x install.sh
+./install.sh
+```
+
+This method combines the benefits of automation while working from a local repository, allowing you to review the installation script before execution.
+
+### 🔧 Option 3: Manual Installation
+
+For complete control over the installation process, follow these steps:
+
+**1. Clone the Repository**
 
 ```bash
 git clone https://github.com/LRTanvirM/tui-center.git
 cd tui-center
 ```
 
-### 2. Build and Install System-Wide
+**2. Install System Dependencies**
 
-Run the unified installation script. This will install base prerequisites, compile the optimized Rust binary, and move it to your system path:
+Select the appropriate command for your distribution:
+
+**Arch Linux / Manjaro:**
 
 ```bash
-chmod +x install.sh
-./install.sh
+sudo pacman -S --needed curl fastfetch
 ```
 
----
+**Debian / Ubuntu:**
 
-## ⌨️ Controls
+```bash
+sudo apt update
+sudo apt install -y curl fastfetch
+```
 
-| Key | Action |
-| --- | --- |
-| **Tab** | Switch focus (Status Bar ↔️ Workspace ↔️ App Bar) |
-| **Arrows / j,k,h,l** | Navigate within the active pane |
-| **Enter** | Launch selected application / Toggle setting |
-| **1 - 9** | Quick-launch apps from the Bottom Bar |
-| **t** | Cycle through UI Themes |
-| **f** | Toggle System Info Pane |
-| **Esc** | Open Settings / Customize Apps |
-| **q** | Quit (with confirmation) |
+**Fedora / RHEL / CentOS:**
 
----
+```bash
+sudo dnf install -y curl fastfetch
+```
 
----
+**Alpine Linux:**
+
+```bash
+sudo apk add curl fastfetch
+```
+
+**3. Install Rust Compiler**
+
+If Rust is not already installed on your system:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
+```
+
+Verify the installation:
+
+```bash
+rustc --version
+```
+
+**4. Compile and Install**
+
+```bash
+cargo build --release
+sudo cp target/release/tui-center /usr/local/bin/
+sudo chmod +x /usr/local/bin/tui-center
+```
+
+Verify the installation:
+
+```bash
+tui-center --version
+```
+
+## ⌨️ Keyboard Controls
+
+| Key                  | Action                                                     |
+| -------------------- | ---------------------------------------------------------- |
+| Tab                  | ↔️ Switch focus between Status Bar, Workspace, and App Bar |
+| Arrow Keys / j,k,h,l | 🔀 Navigate within the active pane                         |
+| Enter                | ▶️ Launch selected application                             |
+| 1 - 9                | ⚡ Quick-launch applications from the dock                 |
+| t                    | 🎨 Cycle through available themes                          |
+| f                    | ℹ️ Toggle the System Information pane                      |
+| Esc                  | ⚙️ Open Settings and application customization             |
+| q                    | 🚪 Exit the application (with confirmation)                |
 
 ## 🗑️ Uninstallation
 
-If you wish to remove **tui-center** from your system, run the provided uninstallation script:
+To remove TUI Control Center from your system:
 
 ```bash
 chmod +x uninstall.sh
 ./uninstall.sh
 ```
 
----
+The uninstall script will remove the binary from system directories and clean up related files.
 
 ## 🤝 Credits
 
-* **Core Model:** Tanvir (Vibe coded with Gemini)
-* **Frameworks:** [Ratatui](https://ratatui.rs/), [Crossterm](https://github.com/crossterm-rs/crossterm)
-* **OS:** Optimized for CachyOS / Arch Linux
+- **Author**: Tanvir
+- **Built with**: [Ratatui](https://ratatui.rs/), [Crossterm](https://github.com/crossterm-rs/crossterm)
+- **Optimized for**: CachyOS / Arch Linux
