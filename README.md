@@ -32,11 +32,20 @@ The top bar is fully modular — each widget can be toggled on/off and reordered
 
 ### 🎨 Theming
 
-Three built-in high-contrast themes with instant switching (`t` key):
+Twelve built-in high-contrast themes with instant switching (`t` key):
 
 - **Nord** — Cyan accent
 - **Dracula** — Magenta accent
 - **Gruvbox** — Yellow accent
+- **Catppuccin Mocha** — Mauve accent (Dark)
+- **Catppuccin Macchiato** — Blue accent (Medium Dark)
+- **Catppuccin Frappé** — Pink accent (Soft Dark)
+- **Catppuccin Latte** — Teal accent (Light)
+- **Tokyo Night** — Purple accent
+- **Solarized Dark** — Cyan accent
+- **Solarized Light** — Cyan accent
+- **Monokai** — Pink/Green accent
+- **One Dark** — Blue/Purple accent
 
 ### 🚀 Onboarding Wizard
 
