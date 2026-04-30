@@ -2,6 +2,20 @@
 name = "tui-center"
 version = "0.1.0"
 edition = "2021"
+description = "A high-performance, themeable terminal dashboard for Linux power users."
+repository = "https://github.com/LRTanvirM/tui-center"
+license = "MIT"
+authors = ["Tanvir", "TokiTauhid"]
+
+[package.metadata.deb]
+maintainer = "Tanvir"
+extended-description = "TUI Control Center is a feature-rich terminal interface built with Rust and Ratatui."
+section = "utils"
+
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/release/tui-center", dest = "/usr/bin/tui-center", mode = "755" }
+]
 
 [dependencies]
 ratatui = "0.26.0"
