@@ -35,17 +35,40 @@ The top bar is fully modular — each widget can be toggled on/off and reordered
 Twelve built-in high-contrast themes with instant switching (`t` key):
 
 - **Nord** — Cyan accent
+  ![Nord Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/nord.png)
+
 - **Dracula** — Magenta accent
+  ![Dracula Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/dracula.png)
+
 - **Gruvbox** — Yellow accent
+  ![Gruvbox Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/gruvbox.png)
+
 - **Catppuccin Mocha** — Mauve accent (Dark)
+  ![Catppuccin Mocha Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/catppuccin-mocha.png)
+
 - **Catppuccin Macchiato** — Blue accent (Medium Dark)
+  ![Catppuccin Macchiato Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/catppuccin-macchiato.png)
+
 - **Catppuccin Frappé** — Pink accent (Soft Dark)
+  ![Catppuccin Frappé Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/catppuccin-frappe.png)
+
 - **Catppuccin Latte** — Teal accent (Light)
+  ![Catppuccin Latte Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/catppuccin-latte.png)
+
 - **Tokyo Night** — Purple accent
+  ![Tokyo Night Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/tokyo-night.png)
+
 - **Solarized Dark** — Cyan accent
+  ![Solarized Dark Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/solarized-dark.png)
+
 - **Solarized Light** — Cyan accent
+  ![Solarized Light Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/solarized-light.png)
+
 - **Monokai** — Pink/Green accent
+  ![Monokai Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/monokai.png)
+
 - **One Dark** — Blue/Purple accent
+  ![One Dark Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/one-dark.png)
 
 ### 🚀 Onboarding Wizard
 
