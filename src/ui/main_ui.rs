@@ -27,6 +27,7 @@ pub fn draw_main(f: &mut Frame, sys: &System, app: &mut MenuApp, size: Rect) {
             Constraint::Length(3),
             Constraint::Min(1),
             Constraint::Length(3),
+            Constraint::Length(1),
         ])
         .split(size);
 
@@ -38,6 +39,9 @@ pub fn draw_main(f: &mut Frame, sys: &System, app: &mut MenuApp, size: Rect) {
 
     // ── App bar ─────────────────────────────────────────────────────────
     draw_app_bar(f, app, chunks[2], active_style);
+
+    // ── Persistent key hints footer ─────────────────────────────────────
+    draw_footer(f, app, chunks[3]);
 
     // ── Overlay popups ──────────────────────────────────────────────────
     if app.mode != AppMode::Normal {
@@ -205,7 +209,46 @@ fn draw_app_bar(
     f.render_widget(bar, area);
 }
 
+// ── Persistent footer ───────────────────────────────────────────────────────
+
+fn draw_footer(f: &mut Frame, app: &MenuApp, area: Rect) {
+    let theme = &app.themes[app.current_theme];
+    let dim = Style::default().fg(theme.unfocus_border);
+    let accent = Style::default().fg(theme.text_accent);
+
+    let hints = match app.focus {
+        FocusPane::StatusBar => Line::from(vec![
+            Span::styled(" ←→", accent), Span::styled(" Navigate  ", dim),
+            Span::styled("Enter", accent), Span::styled(" Select  ", dim),
+            Span::styled("Tab", accent), Span::styled(" Switch pane  ", dim),
+            Span::styled("Esc", accent), Span::styled(" Settings  ", dim),
+            Span::styled("?", accent), Span::styled(" Help  ", dim),
+            Span::styled("q", accent), Span::styled(" Quit", dim),
+        ]),
+        FocusPane::Workspace => Line::from(vec![
+            Span::styled(" ↑↓", accent), Span::styled(" Navigate  ", dim),
+            Span::styled("Enter", accent), Span::styled(" Launch  ", dim),
+            Span::styled("Tab", accent), Span::styled(" Switch pane  ", dim),
+            Span::styled("Esc", accent), Span::styled(" Settings  ", dim),
+            Span::styled("?", accent), Span::styled(" Help  ", dim),
+            Span::styled("q", accent), Span::styled(" Quit", dim),
+        ]),
+        FocusPane::AppBar => Line::from(vec![
+            Span::styled(" ←→", accent), Span::styled(" Navigate  ", dim),
+            Span::styled("1-9", accent), Span::styled(" Launch  ", dim),
+            Span::styled("Tab", accent), Span::styled(" Switch pane  ", dim),
+            Span::styled("Esc", accent), Span::styled(" Settings  ", dim),
+            Span::styled("?", accent), Span::styled(" Help  ", dim),
+            Span::styled("q", accent), Span::styled(" Quit", dim),
+        ]),
+    };
+
+    let footer = Paragraph::new(hints).alignment(Alignment::Center);
+    f.render_widget(footer, area);
+}
+
 // ── Popups (non-onboarding) ─────────────────────────────────────────────────
+
 
 fn draw_popup(f: &mut Frame, app: &mut MenuApp, size: Rect, active_style: Style) {
     let theme = &app.themes[app.current_theme];
@@ -260,14 +303,46 @@ fn draw_popup(f: &mut Frame, app: &mut MenuApp, size: Rect, active_style: Style)
         }
 
         AppMode::HelpPopup => {
-            let area = centered_rect(50, 40, size);
+            let area = centered_rect(60, 60, size);
             f.render_widget(Clear, area);
-            let p = Paragraph::new(
-                "\n--- HELP ---\n\nTab: Switch Focus Pane\nArrows: Navigate\nEnter: Launch App\n1-9: App Bar Hotkeys\nq: Quit\n\nPress Esc to close.",
-            )
-            .alignment(Alignment::Center)
-            .style(Style::default().fg(theme.text_normal))
-            .block(popup_block.title(" Commands "));
+            let help_lines = vec![
+                Line::from(""),
+                Line::from(Span::styled(
+                    "──── Navigation ────",
+                    Style::default().fg(theme.text_accent).add_modifier(Modifier::BOLD),
+                )),
+                Line::from("  Tab          Switch pane (Status → Workspace → AppBar)"),
+                Line::from("  ↑↓ / j k     Navigate lists"),
+                Line::from("  ←→ / h l     Navigate status bar & app bar"),
+                Line::from("  Enter        Launch app / Confirm action"),
+                Line::from("  1-9          Launch app bar shortcut"),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "──── Actions ────",
+                    Style::default().fg(theme.text_accent).add_modifier(Modifier::BOLD),
+                )),
+                Line::from("  Esc          Open settings menu"),
+                Line::from("  q            Quit (with confirmation)"),
+                Line::from("  t            Cycle theme"),
+                Line::from("  f            Toggle system info panel"),
+                Line::from("  ? / F1       Show this help"),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "──── Universal ────",
+                    Style::default().fg(theme.text_accent).add_modifier(Modifier::BOLD),
+                )),
+                Line::from("  Esc          Go back / Cancel"),
+                Line::from("  Enter        Confirm / Select"),
+                Line::from("  Backspace    Go back (same as Esc)"),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "  Press Esc to close",
+                    Style::default().fg(theme.text_accent),
+                )),
+            ];
+            let p = Paragraph::new(help_lines)
+                .style(Style::default().fg(theme.text_normal))
+                .block(popup_block.title(" Keyboard Shortcuts "));
             f.render_widget(p, area);
         }
 

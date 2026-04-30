@@ -154,7 +154,7 @@ impl MenuApp {
             SuggestedApp { name: "neomutt".into(), description: "Email client".into(), command: "neomutt".into(), selected: false, repo_note: String::new(), is_appbar: false },
             // ── App-bar apps ──
             SuggestedApp { name: "Browser".into(), description: "Web browser".into(), command: "xdg-open http://".into(), selected: true, repo_note: String::new(), is_appbar: true },
-            SuggestedApp { name: "Files".into(), description: "File manager (thunar)".into(), command: "thunar".into(), selected: true, repo_note: String::new(), is_appbar: true },
+            SuggestedApp { name: "Files".into(), description: "File manager (thunar)".into(), command: "thunar".into(), selected: true, repo_note: String::new(), //remove thunar use xdg opne to open users default files. is_appbar: true },
             SuggestedApp { name: "Terminal".into(), description: "Extra terminal".into(), command: "$TERMINAL".into(), selected: true, repo_note: String::new(), is_appbar: true },
             SuggestedApp { name: "Settings".into(), description: "System settings".into(), command: "xdg-open settings://".into(), selected: false, repo_note: String::new(), is_appbar: true },
         ]

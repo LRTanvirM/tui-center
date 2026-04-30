@@ -72,7 +72,7 @@ pub fn draw_onboarding(f: &mut Frame, app: &mut MenuApp, size: Rect) {
             render_hint(
                 f,
                 area,
-                "Chaotic AUR provides pre-built AUR packages. Enter to select.",
+                "↑↓ Navigate  |  Enter: Select  |  Esc: Back",
                 theme.text_accent,
             );
         }
@@ -102,11 +102,11 @@ pub fn draw_onboarding(f: &mut Frame, app: &mut MenuApp, size: Rect) {
 
             let hint_text = if app.aur_helper.is_some() {
                 format!(
-                    "Detected: {}. Press Enter to confirm or pick another.",
+                    "Detected: {}. Enter: Confirm  |  Esc: Back",
                     app.aur_helper.as_ref().unwrap()
                 )
             } else {
-                "No AUR helper found. Pick one to install.".to_string()
+                "↑↓ Navigate  |  Enter: Install  |  Esc: Back".to_string()
             };
             render_hint(f, area, &hint_text, theme.text_accent);
         }
@@ -136,7 +136,7 @@ pub fn draw_onboarding(f: &mut Frame, app: &mut MenuApp, size: Rect) {
             render_hint(
                 f,
                 area,
-                "↑↓ Navigate  |  Enter: Apply  |  Tab: Next →",
+                "↑↓ Navigate  |  Enter: Apply  |  Tab: Next →  |  Esc: Back",
                 theme.text_accent,
             );
         }
@@ -166,7 +166,7 @@ pub fn draw_onboarding(f: &mut Frame, app: &mut MenuApp, size: Rect) {
             render_hint(
                 f,
                 area,
-                "↑↓ Navigate  |  Enter: Apply  |  Tab: Next →",
+                "↑↓ Navigate  |  Enter: Apply  |  Tab: Next →  |  Esc: Back",
                 theme.text_accent,
             );
         }
@@ -208,7 +208,7 @@ pub fn draw_onboarding(f: &mut Frame, app: &mut MenuApp, size: Rect) {
             render_hint(
                 f,
                 area,
-                "Space: Toggle  |  Enter: Finish & Continue →",
+                "Space: Toggle  |  Enter: Finish & Continue →  |  Esc: Back",
                 theme.text_accent,
             );
         }

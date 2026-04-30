@@ -9,7 +9,7 @@ pub fn handle_onboarding_key(app: &mut MenuApp, code: KeyCode) -> bool {
     match &app.mode {
         AppMode::OnboardingStart => {
             match code {
-                KeyCode::Esc => app.mode = AppMode::Normal,
+                KeyCode::Esc | KeyCode::Backspace => app.mode = AppMode::Normal,
                 KeyCode::Enter => {
                     if app.is_arch {
                         app.options_index = 0;
@@ -27,7 +27,10 @@ pub fn handle_onboarding_key(app: &mut MenuApp, code: KeyCode) -> bool {
 
         AppMode::OnboardingChaoticAur => {
             match code {
-                KeyCode::Esc => app.mode = AppMode::Normal,
+                // Back → previous step (OnboardingStart)
+                KeyCode::Esc | KeyCode::Backspace => {
+                    app.mode = AppMode::OnboardingStart;
+                }
                 KeyCode::Up | KeyCode::Char('k') => {
                     app.chaotic_aur_index = if app.chaotic_aur_index == 0 { 1 } else { 0 };
                     app.options_state.select(Some(app.chaotic_aur_index));
@@ -62,9 +65,11 @@ pub fn handle_onboarding_key(app: &mut MenuApp, code: KeyCode) -> bool {
 
         AppMode::OnboardingAurHelper => {
             match code {
-                KeyCode::Esc => {
-                    app.mode = AppMode::OnboardingTheme;
-                    app.theme_state.select(Some(app.current_theme));
+                // Back → previous step (ChaoticAur)
+                KeyCode::Esc | KeyCode::Backspace => {
+                    app.chaotic_aur_index = 0;
+                    app.options_state.select(Some(0));
+                    app.mode = AppMode::OnboardingChaoticAur;
                 }
                 KeyCode::Up | KeyCode::Char('k') => {
                     if app.aur_helper_index == 0 {
@@ -115,7 +120,16 @@ pub fn handle_onboarding_key(app: &mut MenuApp, code: KeyCode) -> bool {
 
         AppMode::OnboardingTheme => {
             match code {
-                KeyCode::Esc => app.mode = AppMode::Normal,
+                // Back → previous step (ChaoticAur if Arch, else Start)
+                KeyCode::Esc | KeyCode::Backspace => {
+                    if app.is_arch {
+                        app.chaotic_aur_index = 0;
+                        app.options_state.select(Some(0));
+                        app.mode = AppMode::OnboardingChaoticAur;
+                    } else {
+                        app.mode = AppMode::OnboardingStart;
+                    }
+                }
                 KeyCode::Up | KeyCode::Char('k') => {
                     let i = app.theme_state.selected().unwrap_or(0);
                     app.theme_state
@@ -147,7 +161,8 @@ pub fn handle_onboarding_key(app: &mut MenuApp, code: KeyCode) -> bool {
 
         AppMode::OnboardingLayout => {
             match code {
-                KeyCode::Esc => {
+                // Back → Theme
+                KeyCode::Esc | KeyCode::Backspace => {
                     app.mode = AppMode::OnboardingTheme;
                     app.theme_state.select(Some(app.current_theme));
                 }
@@ -171,7 +186,8 @@ pub fn handle_onboarding_key(app: &mut MenuApp, code: KeyCode) -> bool {
 
         AppMode::OnboardingApps => {
             match code {
-                KeyCode::Esc => {
+                // Back → Layout
+                KeyCode::Esc | KeyCode::Backspace => {
                     app.mode = AppMode::OnboardingLayout;
                     app.options_index = 0;
                     app.options_state.select(Some(0));

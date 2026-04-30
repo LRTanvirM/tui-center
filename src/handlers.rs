@@ -23,7 +23,7 @@ pub fn handle_normal_key(
                     app.options_index = 0;
                     app.options_state.select(Some(0));
                 }
-                KeyCode::F(1) => app.mode = AppMode::HelpPopup,
+                KeyCode::F(1) | KeyCode::Char('?') => app.mode = AppMode::HelpPopup,
                 KeyCode::Char('f') => app.show_sys_info = !app.show_sys_info,
                 KeyCode::Char('t') => {
                     app.current_theme = (app.current_theme + 1) % app.themes.len();
@@ -124,7 +124,7 @@ pub fn handle_normal_key(
                 }
             }
             KeyCode::Char('y') | KeyCode::Char('Y') => *should_quit = true,
-            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc | KeyCode::Char('q') => {
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc | KeyCode::Backspace => {
                 app.mode = AppMode::Normal
             }
             _ => {}
