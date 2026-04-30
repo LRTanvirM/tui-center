@@ -13,6 +13,17 @@ impl MenuApp {
             first_launch: true,
             current_theme: "Nord".to_string(),
             default_show_sys_info: true,
+            status_modules: vec![
+                (StatusModule::Greeting, true),
+                (StatusModule::Time, true),
+                (StatusModule::Memory, true),
+                (StatusModule::Uptime, true),
+                (StatusModule::Theme, true),
+                (StatusModule::SysInfoToggle, true),
+                (StatusModule::Audio, true),
+                (StatusModule::Network, true),
+                (StatusModule::Power, true),
+            ],
         });
 
         let mut state = ListState::default();
@@ -78,7 +89,7 @@ impl MenuApp {
             AppMode::Normal
         };
 
-        Self {
+        let mut app = Self {
             items: vec![],
             state,
             mode: initial_mode,
@@ -119,7 +130,97 @@ impl MenuApp {
             cheat_file_index: 0,
             cheat_status: String::new(),
             import_export_index: 0,
+            greeting_text: String::new(),
+            user_name: std::env::var("USER").unwrap_or_else(|_| "User".to_string()),
+            audio_vol: String::new(),
+            network_info: String::new(),
+            battery_info: String::new(),
+            status_custom_index: 0,
+            last_refresh: std::time::Instant::now(),
+        };
+        app.refresh_status_bar_data();
+        app
+    }
+
+    /// Periodically refresh dynamic data like battery and audio that isn't provided natively by sysinfo.
+    pub fn refresh_status_bar_data(&mut self) {
+        // Battery status (basic Linux sysfs reading)
+        let bat_cap = std::fs::read_to_string("/sys/class/power_supply/BAT0/capacity")
+            .unwrap_or_else(|_| "N/A".to_string())
+            .trim()
+            .to_string();
+        let bat_stat = std::fs::read_to_string("/sys/class/power_supply/BAT0/status")
+            .unwrap_or_else(|_| "".to_string())
+            .trim()
+            .to_string();
+        self.battery_info = if bat_cap == "N/A" {
+            "🔌 AC".to_string()
+        } else {
+            let icon = if bat_stat == "Charging" { "⚡" } else { "🔋" };
+            format!("{} {}%", icon, bat_cap)
+        };
+
+        // Greeting
+        let hour = chrono::Local::now().format("%H").to_string().parse::<u32>().unwrap_or(12);
+        self.greeting_text = match hour {
+            5..=11 => "Good Morning",
+            12..=16 => "Good Afternoon",
+            17..=21 => "Good Evening",
+            _ => "Good Night",
+        }.to_string();
+
+        // Audio volume (using wpctl as common on modern desktop environments, or amixer)
+        // This is a rough heuristic.
+        let out = ProcessCommand::new("sh").arg("-c").arg("wpctl get-volume @DEFAULT_AUDIO_SINK@ || amixer sget Master").output();
+        if let Ok(output) = out {
+            let s = String::from_utf8_lossy(&output.stdout);
+            if s.contains("Volume:") {
+                // wpctl output: "Volume: 0.50 [MUTED]"
+                let parts: Vec<&str> = s.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    if let Ok(vol_f) = parts[1].parse::<f32>() {
+                        let vol_pct = (vol_f * 100.0) as i32;
+                        let is_muted = s.contains("MUTED");
+                        self.audio_vol = if is_muted { format!("🔇 {}%", vol_pct) } else { format!("🔊 {}%", vol_pct) };
+                    }
+                }
+            } else if s.contains("[%]") {
+                // amixer output has something like [50%]
+                if let Some(start) = s.find('[') {
+                    if let Some(end) = s[start..].find(']') {
+                        let inner = &s[start+1..start+end];
+                        let is_muted = s.contains("[off]");
+                        self.audio_vol = if is_muted { format!("🔇 {}", inner) } else { format!("🔊 {}", inner) };
+                    }
+                }
+            }
         }
+        if self.audio_vol.is_empty() {
+            self.audio_vol = "🔊 N/A".to_string();
+        }
+
+        // Network status (simple check)
+        let route_out = ProcessCommand::new("sh").arg("-c").arg("ip route get 1.1.1.1 2>/dev/null").output();
+        self.network_info = "🌐 Offline".to_string();
+        if let Ok(o) = route_out {
+            let s = String::from_utf8_lossy(&o.stdout);
+            if s.contains("dev ") {
+                let parts: Vec<&str> = s.split("dev ").collect();
+                if parts.len() > 1 {
+                    let iface = parts[1].split_whitespace().next().unwrap_or("");
+                    let icon = if iface.starts_with("wl") || iface.starts_with("wlp") {
+                        "📶 WiFi"
+                    } else if iface.starts_with("en") || iface.starts_with("eth") {
+                        "🖧 LAN"
+                    } else {
+                        "🌐 Net"
+                    };
+                    self.network_info = format!("{} ({})", icon, iface);
+                }
+            }
+        }
+
+        self.last_refresh = std::time::Instant::now();
     }
 
     /// Builds the list of suggested onboarding apps with distro-specific repo notes.

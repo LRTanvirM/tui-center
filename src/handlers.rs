@@ -51,7 +51,8 @@ pub fn handle_normal_key(
                     }
                 }
                 KeyCode::Right | KeyCode::Char('l') => {
-                    if app.focus == FocusPane::StatusBar && app.status_index < 4 {
+                    let active_modules: Vec<_> = app.config.status_modules.iter().filter(|(_, v)| *v).collect();
+                    if app.focus == FocusPane::StatusBar && app.status_index < active_modules.len().saturating_sub(1) {
                         app.status_index += 1;
                     }
                     if app.focus == FocusPane::AppBar
@@ -63,17 +64,25 @@ pub fn handle_normal_key(
                 KeyCode::Enter => {
                     let mut cmd = String::new();
                     match app.focus {
-                        FocusPane::StatusBar => match app.status_index {
-                            0 => cmd = "tclock".to_string(),
-                            1 => cmd = "btop".to_string(),
-                            2 => cmd = "uptime".to_string(),
-                            3 => {
-                                app.mode = AppMode::ThemePopup;
-                                app.theme_state.select(Some(app.current_theme));
+                        FocusPane::StatusBar => {
+                            let active_modules: Vec<_> = app.config.status_modules.iter().filter(|(_, v)| *v).map(|(m, _)| m).collect();
+                            if app.status_index < active_modules.len() {
+                                match active_modules[app.status_index] {
+                                    StatusModule::Greeting => {}
+                                    StatusModule::Time => cmd = "tclock".to_string(),
+                                    StatusModule::Memory => cmd = "btop".to_string(),
+                                    StatusModule::Uptime => cmd = "uptime".to_string(),
+                                    StatusModule::Theme => {
+                                        app.mode = AppMode::ThemePopup;
+                                        app.theme_state.select(Some(app.current_theme));
+                                    }
+                                    StatusModule::SysInfoToggle => app.show_sys_info = !app.show_sys_info,
+                                    StatusModule::Audio => cmd = "alsamixer".to_string(),
+                                    StatusModule::Network => cmd = "nmtui".to_string(),
+                                    StatusModule::Power => {} // or potentially a power TUI tool
+                                }
                             }
-                            4 => app.show_sys_info = !app.show_sys_info,
-                            _ => {}
-                        },
+                        }
                         FocusPane::Workspace => {
                             if let Some(i) = app.state.selected() {
                                 cmd = app.items[i].cmd.clone();
@@ -137,7 +146,7 @@ pub fn handle_normal_key(
         },
 
         AppMode::OptionsPopup => {
-            let opts_len = 7;
+            let opts_len = 8; // selectable items count
             match code {
                 KeyCode::Esc | KeyCode::Backspace => app.mode = AppMode::Normal,
                 KeyCode::Up | KeyCode::Char('k') => app.prev_opt(opts_len),
@@ -159,15 +168,55 @@ pub fn handle_normal_key(
                         app.show_sys_info = app.default_show_sys_info;
                     }
                     4 => {
+                        app.mode = AppMode::CustomizingStatusBar;
+                        app.options_index = 0;
+                        app.options_state.select(Some(0));
+                    }
+                    5 => {
                         app.mode = AppMode::ImportExportMenu;
                         app.import_export_index = 0;
                         app.options_index = 0;
                         app.options_state.select(Some(0));
                     }
-                    5 => app.mode = AppMode::OnboardingStart,
-                    6 => app.mode = AppMode::Normal,
+                    6 => app.mode = AppMode::OnboardingStart,
+                    7 => app.mode = AppMode::Normal,
                     _ => {}
                 },
+                _ => {}
+            }
+        }
+
+        AppMode::CustomizingStatusBar => {
+            let len = app.config.status_modules.len();
+            match code {
+                KeyCode::Esc | KeyCode::Backspace => {
+                    app.mode = AppMode::OptionsPopup;
+                    app.options_index = 4;
+                    app.options_state.select(Some(4));
+                }
+                KeyCode::Up => app.prev_opt(len),
+                KeyCode::Down => app.next_opt(len),
+                KeyCode::Char('k') => app.prev_opt(len),
+                KeyCode::Char('j') => app.next_opt(len),
+                KeyCode::Char('K') => {
+                    if app.options_index > 0 {
+                        app.config.status_modules.swap(app.options_index, app.options_index - 1);
+                        app.options_index -= 1;
+                        app.options_state.select(Some(app.options_index));
+                    }
+                }
+                KeyCode::Char('J') => {
+                    if app.options_index < len.saturating_sub(1) {
+                        app.config.status_modules.swap(app.options_index, app.options_index + 1);
+                        app.options_index += 1;
+                        app.options_state.select(Some(app.options_index));
+                    }
+                }
+                KeyCode::Char(' ') | KeyCode::Enter => {
+                    if app.options_index < len {
+                        app.config.status_modules[app.options_index].1 = !app.config.status_modules[app.options_index].1;
+                    }
+                }
                 _ => {}
             }
         }
@@ -309,8 +358,8 @@ pub fn handle_normal_key(
             match code {
                 KeyCode::Esc | KeyCode::Backspace => {
                     app.mode = AppMode::OptionsPopup;
-                    app.options_index = 4;
-                    app.options_state.select(Some(4));
+                    app.options_index = 5;
+                    app.options_state.select(Some(5));
                 }
                 KeyCode::Up | KeyCode::Char('k') => app.prev_opt(opts_len),
                 KeyCode::Down | KeyCode::Char('j') => app.next_opt(opts_len),
@@ -332,10 +381,9 @@ pub fn handle_normal_key(
                         app.mode = AppMode::CheatExportConfirm;
                     }
                     2 => {
-                        // Back
                         app.mode = AppMode::OptionsPopup;
-                        app.options_index = 4;
-                        app.options_state.select(Some(4));
+                        app.options_index = 5;
+                        app.options_state.select(Some(5));
                     }
                     _ => {}
                 },

@@ -11,15 +11,81 @@ use chrono::Local;
 use super::centered_rect;
 use crate::types::*;
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  SHARED HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Derive all theme-based styles once to avoid repeated indexing.
+struct UiStyles {
+    active: Style,
+    accent: Style,
+    dim: Style,
+    normal_fg: Color,
+    focus_border: Color,
+    unfocus_border: Color,
+}
+
+impl UiStyles {
+    fn from_app(app: &MenuApp) -> Self {
+        let t = &app.themes[app.current_theme];
+        Self {
+            active: Style::default()
+                .bg(t.highlight_bg)
+                .fg(t.highlight_fg)
+                .add_modifier(Modifier::BOLD),
+            accent: Style::default().fg(t.text_accent),
+            dim: Style::default().fg(t.unfocus_border),
+            normal_fg: t.text_normal,
+            focus_border: t.focus_border,
+            unfocus_border: t.unfocus_border,
+        }
+    }
+
+    /// Standard popup block with focused border.
+    fn popup_block<'a>(&self, title: &'a str) -> Block<'a> {
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(self.focus_border))
+            .style(Style::default().bg(Color::Black))
+            .title(title)
+    }
+
+    /// Yes/No button pair with the cursor on the given side (0=No, 1=Yes).
+    fn yes_no_spans(&self, cursor: usize) -> Vec<Span<'_>> {
+        let (yes_s, no_s) = if cursor == 1 {
+            (self.active, Style::default().fg(Color::Green))
+        } else {
+            (Style::default().fg(Color::Green), self.active)
+        };
+        vec![
+            Span::styled(" [Y]es ", yes_s),
+            Span::raw("   /   "),
+            Span::styled(" [N]o ", no_s),
+        ]
+    }
+}
+
+/// Renders a one-line hint bar at the bottom edge of the given area.
+fn render_hint(f: &mut Frame, area: Rect, text: &str, color: Color) {
+    let hint_area = Rect {
+        x: area.x + 1,
+        y: area.y + area.height.saturating_sub(2),
+        width: area.width.saturating_sub(2),
+        height: 1,
+    };
+    let hint = Paragraph::new(text)
+        .style(Style::default().fg(color))
+        .alignment(Alignment::Center);
+    f.render_widget(hint, hint_area);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  TOP-LEVEL ENTRY
+// ═══════════════════════════════════════════════════════════════════════════
+
 /// Draws the main dashboard (status bar, workspace, app bar) and any overlay popups.
 pub fn draw_main(f: &mut Frame, sys: &System, app: &mut MenuApp, size: Rect) {
-    // Copy theme-derived styles upfront to avoid borrow conflicts
-    let theme_idx = app.current_theme;
-    let active_style = Style::default()
-        .bg(app.themes[theme_idx].highlight_bg)
-        .fg(app.themes[theme_idx].highlight_fg)
-        .add_modifier(Modifier::BOLD);
-    let inactive_accent = Style::default().fg(app.themes[theme_idx].text_accent);
+    let s = UiStyles::from_app(app);
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -31,473 +97,353 @@ pub fn draw_main(f: &mut Frame, sys: &System, app: &mut MenuApp, size: Rect) {
         ])
         .split(size);
 
-    // ── Status bar ──────────────────────────────────────────────────────
-    draw_status_bar(f, sys, app, chunks[0], active_style, inactive_accent);
+    draw_status_bar(f, sys, app, chunks[0], &s);
+    draw_workspace(f, app, chunks[1], &s);
+    draw_app_bar(f, app, chunks[2], &s);
+    draw_footer(f, app, chunks[3], &s);
 
-    // ── Workspace + SysInfo ─────────────────────────────────────────────
-    draw_workspace(f, app, chunks[1], active_style);
-
-    // ── App bar ─────────────────────────────────────────────────────────
-    draw_app_bar(f, app, chunks[2], active_style);
-
-    // ── Persistent key hints footer ─────────────────────────────────────
-    draw_footer(f, app, chunks[3]);
-
-    // ── Overlay popups ──────────────────────────────────────────────────
     if app.mode != AppMode::Normal {
-        draw_popup(f, app, size, active_style);
+        draw_popup(f, app, size, &s);
     }
 }
 
-// ── Status bar ──────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+//  STATUS BAR
+// ═══════════════════════════════════════════════════════════════════════════
 
-fn draw_status_bar(
-    f: &mut Frame,
-    sys: &System,
-    app: &MenuApp,
-    area: Rect,
-    active: Style,
-    inactive: Style,
-) {
+fn draw_status_bar(f: &mut Frame, sys: &System, app: &MenuApp, area: Rect, s: &UiStyles) {
+    let border_color = if app.focus == FocusPane::StatusBar { s.focus_border } else { s.unfocus_border };
+
+    let style_for = |idx: usize| -> Style {
+        if app.focus == FocusPane::StatusBar && app.status_index == idx { s.active } else { s.accent }
+    };
+
+    let active_modules: Vec<_> = app.config.status_modules.iter().filter(|(_, v)| *v).collect();
+    let n = active_modules.len();
     let theme = &app.themes[app.current_theme];
-    let border_color = if app.focus == FocusPane::StatusBar {
-        theme.focus_border
-    } else {
-        theme.unfocus_border
-    };
 
-    let time = Local::now().format("%I:%M %p").to_string();
-    let used_mem = sys.used_memory() as f64 / 1_073_741_824.0;
-    let total_mem = sys.total_memory() as f64 / 1_073_741_824.0;
-    let up_secs = System::uptime();
-    let uptime_str = format!("{}h {}m", up_secs / 3600, (up_secs % 3600) / 60);
+    let mut spans = Vec::new();
+    for (i, (module, _)) in active_modules.iter().enumerate() {
+        let text = match module {
+            StatusModule::Greeting => format!(" 👋 {}, @{} ", app.greeting_text, app.user_name),
+            StatusModule::Time     => format!(" 🕒 {} ", Local::now().format("%I:%M %p")),
+            StatusModule::Memory   => format!(" 💾 {:.1}/{:.1} GiB ", sys.used_memory() as f64 / 1_073_741_824.0, sys.total_memory() as f64 / 1_073_741_824.0),
+            StatusModule::Uptime   => format!(" ⏱ {}h{}m ", System::uptime() / 3600, (System::uptime() % 3600) / 60),
+            StatusModule::Theme    => format!(" 🎨 {} ", theme.name),
+            StatusModule::SysInfoToggle => if app.show_sys_info { " 🖥 SysInfo ✓ ".into() } else { " 🖥 SysInfo ✗ ".into() },
+            StatusModule::Audio    => format!(" {} ", app.audio_vol),
+            StatusModule::Network  => format!(" {} ", app.network_info),
+            StatusModule::Power    => format!(" {} ", app.battery_info),
+        };
+        spans.push(Span::styled(text, style_for(i)));
+        if i < n - 1 { spans.push(Span::raw(" │ ")); }
+    }
 
-    let style_for = |idx| {
-        if app.focus == FocusPane::StatusBar && app.status_index == idx { active } else { inactive }
-    };
-
-    let status_line = Line::from(vec![
-        Span::styled(format!(" 🕒 {} ", time), style_for(0)),
-        Span::raw("  |  "),
-        Span::styled(format!(" 💾 {:.2} GiB / {:.2} GiB ", used_mem, total_mem), style_for(1)),
-        Span::raw("  |  "),
-        Span::styled(format!(" ⏱ Up: {} ", uptime_str), style_for(2)),
-        Span::raw("  |  "),
-        Span::styled(format!(" 🎨 Theme: {} ", theme.name), style_for(3)),
-        Span::raw("  |  "),
-        Span::styled(
-            if app.show_sys_info { " 🖥 Hide SysInfo " } else { " 🖥 Show SysInfo " },
-            style_for(4),
-        ),
-    ]);
-
-    let panel = Paragraph::new(status_line)
+    let panel = Paragraph::new(Line::from(spans))
         .alignment(Alignment::Right)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(border_color))
-                .title(" Status Bar (Tab to switch panes) "),
-        );
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(border_color))
+            .title(" Status Bar "));
     f.render_widget(panel, area);
 }
 
-// ── Workspace ───────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+//  WORKSPACE
+// ═══════════════════════════════════════════════════════════════════════════
 
-fn draw_workspace(
-    f: &mut Frame,
-    app: &mut MenuApp,
-    area: Rect,
-    active_style: Style,
-) {
-    let theme = &app.themes[app.current_theme];
-    let work_border = if app.focus == FocusPane::Workspace {
-        theme.focus_border
-    } else {
-        theme.unfocus_border
-    };
+fn draw_workspace(f: &mut Frame, app: &mut MenuApp, area: Rect, s: &UiStyles) {
+    let border = if app.focus == FocusPane::Workspace { s.focus_border } else { s.unfocus_border };
 
     let work_chunks = if app.show_sys_info {
-        Layout::default()
-            .direction(Direction::Horizontal)
+        Layout::default().direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
             .split(area)
     } else {
-        Layout::default()
-            .direction(Direction::Horizontal)
+        Layout::default().direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(100)])
             .split(area)
     };
 
-    let items: Vec<ListItem> = app
-        .items
-        .iter()
-        .map(|item| {
-            ListItem::new(format!("{:<20} │ {}", item.name, item.desc))
-                .style(Style::default().fg(theme.text_normal))
-        })
+    let items: Vec<ListItem> = app.items.iter()
+        .map(|item| ListItem::new(format!("  {:<20} │ {}", item.name, item.desc))
+            .style(Style::default().fg(s.normal_fg)))
         .collect();
 
-    let highlight = if app.focus == FocusPane::Workspace {
-        active_style
-    } else {
-        Style::default().fg(theme.unfocus_border)
-    };
+    let highlight = if app.focus == FocusPane::Workspace { s.active } else { Style::default().fg(s.unfocus_border) };
 
     let list = List::new(items)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(work_border))
-                .title(" Main Workspace (F1 for help, Esc for settings) "),
-        )
+        .block(Block::default().borders(Borders::ALL)
+            .border_style(Style::default().fg(border))
+            .title(" Workspace "))
         .highlight_style(highlight)
-        .highlight_symbol(">> ");
+        .highlight_symbol("▸ ");
     f.render_stateful_widget(list, work_chunks[0], &mut app.state);
 
     if app.show_sys_info {
         let sys_lines: Vec<Line> = app.sys_info_text.lines().map(Line::from).collect();
         let sys_block = Paragraph::new(sys_lines)
-            .style(Style::default().fg(theme.text_normal))
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(theme.unfocus_border))
-                    .title(" System Info "),
-            );
+            .style(Style::default().fg(s.normal_fg))
+            .block(Block::default().borders(Borders::ALL)
+                .border_style(Style::default().fg(s.unfocus_border))
+                .title(" System Info "));
         f.render_widget(sys_block, work_chunks[1]);
     }
 }
 
-// ── App bar ─────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+//  APP BAR
+// ═══════════════════════════════════════════════════════════════════════════
 
-fn draw_app_bar(
-    f: &mut Frame,
-    app: &MenuApp,
-    area: Rect,
-    active_style: Style,
-) {
-    let theme = &app.themes[app.current_theme];
-    let app_border = if app.focus == FocusPane::AppBar {
-        theme.focus_border
-    } else {
-        theme.unfocus_border
-    };
-    let inactive_green = Style::default().fg(Color::Green);
+fn draw_app_bar(f: &mut Frame, app: &MenuApp, area: Rect, s: &UiStyles) {
+    let border = if app.focus == FocusPane::AppBar { s.focus_border } else { s.unfocus_border };
 
     let mut spans = Vec::new();
     for (i, item) in app.app_bar_items.iter().enumerate() {
-        let style = if app.focus == FocusPane::AppBar && app.app_bar_index == i {
-            active_style
-        } else {
-            inactive_green
-        };
+        let style = if app.focus == FocusPane::AppBar && app.app_bar_index == i { s.active }
+                    else { Style::default().fg(Color::Green) };
         spans.push(Span::styled(format!(" [{}] {} ", i + 1, item.name), style));
-        if i < app.app_bar_items.len() - 1 {
-            spans.push(Span::raw("   "));
-        }
+        if i < app.app_bar_items.len() - 1 { spans.push(Span::raw("  ")); }
     }
 
     let bar = Paragraph::new(Line::from(spans))
         .alignment(Alignment::Center)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(app_border))
-                .title(" App Bar (Press 1-9 to launch) "),
-        );
+        .block(Block::default().borders(Borders::ALL)
+            .border_style(Style::default().fg(border))
+            .title(" App Bar "));
     f.render_widget(bar, area);
 }
 
-// ── Persistent footer ───────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+//  FOOTER — context-aware key hints
+// ═══════════════════════════════════════════════════════════════════════════
 
-fn draw_footer(f: &mut Frame, app: &MenuApp, area: Rect) {
-    let theme = &app.themes[app.current_theme];
-    let dim = Style::default().fg(theme.unfocus_border);
-    let accent = Style::default().fg(theme.text_accent);
-
-    let hints = match app.focus {
-        FocusPane::StatusBar => Line::from(vec![
-            Span::styled(" ←→", accent), Span::styled(" Navigate  ", dim),
-            Span::styled("Enter", accent), Span::styled(" Select  ", dim),
-            Span::styled("Tab", accent), Span::styled(" Switch pane  ", dim),
-            Span::styled("Esc", accent), Span::styled(" Settings  ", dim),
-            Span::styled("?", accent), Span::styled(" Help  ", dim),
-            Span::styled("q", accent), Span::styled(" Quit", dim),
-        ]),
-        FocusPane::Workspace => Line::from(vec![
-            Span::styled(" ↑↓", accent), Span::styled(" Navigate  ", dim),
-            Span::styled("Enter", accent), Span::styled(" Launch  ", dim),
-            Span::styled("Tab", accent), Span::styled(" Switch pane  ", dim),
-            Span::styled("Esc", accent), Span::styled(" Settings  ", dim),
-            Span::styled("?", accent), Span::styled(" Help  ", dim),
-            Span::styled("q", accent), Span::styled(" Quit", dim),
-        ]),
-        FocusPane::AppBar => Line::from(vec![
-            Span::styled(" ←→", accent), Span::styled(" Navigate  ", dim),
-            Span::styled("1-9", accent), Span::styled(" Launch  ", dim),
-            Span::styled("Tab", accent), Span::styled(" Switch pane  ", dim),
-            Span::styled("Esc", accent), Span::styled(" Settings  ", dim),
-            Span::styled("?", accent), Span::styled(" Help  ", dim),
-            Span::styled("q", accent), Span::styled(" Quit", dim),
-        ]),
+fn draw_footer(f: &mut Frame, app: &MenuApp, area: Rect, s: &UiStyles) {
+    let hints: Vec<(&str, &str)> = match app.mode {
+        AppMode::Normal => match app.focus {
+            FocusPane::StatusBar => vec![("←→","Navigate"),("Enter","Action"),("Tab","Pane"),("Esc","Settings"),("?","Help"),("q","Quit")],
+            FocusPane::Workspace => vec![("↑↓","Navigate"),("Enter","Launch"),("Tab","Pane"),("Esc","Settings"),("?","Help"),("q","Quit")],
+            FocusPane::AppBar    => vec![("←→","Navigate"),("1-9","Launch"),("Tab","Pane"),("Esc","Settings"),("?","Help"),("q","Quit")],
+        },
+        AppMode::OptionsPopup => vec![("↑↓","Navigate"),("Enter","Select"),("Esc","Close")],
+        AppMode::EditMain | AppMode::EditApp => vec![("↑↓","Navigate"),("a","Add"),("d","Delete"),("Esc","Back")],
+        AppMode::CustomizingStatusBar => vec![("↑↓","Navigate"),("Space","Toggle"),("Shift+J/K","Reorder"),("Esc","Back")],
+        AppMode::ImportExportMenu => vec![("↑↓","Navigate"),("Enter","Select"),("Esc","Back")],
+        AppMode::CheatBrowser => vec![("↑↓","Navigate"),("Enter","Import"),("Esc","Back")],
+        AppMode::ThemePopup => vec![("↑↓","Navigate"),("Enter","Apply"),("Esc","Cancel")],
+        _ => vec![("Esc","Back"),("Enter","Confirm")],
     };
 
-    let footer = Paragraph::new(hints).alignment(Alignment::Center);
+    let mut spans = Vec::new();
+    for (key, desc) in hints {
+        spans.push(Span::styled(format!(" {}", key), s.accent));
+        spans.push(Span::styled(format!(" {}  ", desc), s.dim));
+    }
+
+    let footer = Paragraph::new(Line::from(spans)).alignment(Alignment::Center);
     f.render_widget(footer, area);
 }
 
-// ── Popups (non-onboarding) ─────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+//  POPUPS — single unified dispatcher
+// ═══════════════════════════════════════════════════════════════════════════
 
-
-fn draw_popup(f: &mut Frame, app: &mut MenuApp, size: Rect, active_style: Style) {
-    let theme = &app.themes[app.current_theme];
-    let popup_border_style = Style::default().fg(theme.focus_border);
-    let popup_block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(popup_border_style)
-        .style(Style::default().bg(Color::Black));
-    let inactive_green = Style::default().fg(Color::Green);
-
+fn draw_popup(f: &mut Frame, app: &mut MenuApp, size: Rect, s: &UiStyles) {
     match app.mode {
+        // ── Settings ────────────────────────────────────────────────────
+        AppMode::OptionsPopup => {
+            let area = centered_rect(50, 55, size);
+            f.render_widget(Clear, area);
+
+            let sys_toggle = if app.show_sys_info { "  ✓ SysInfo visible" } else { "  ✗ SysInfo hidden" };
+            let sys_default = if app.default_show_sys_info { "  [X] Show SysInfo on launch" } else { "  [ ] Show SysInfo on launch" };
+
+            let items = vec![
+                ListItem::new(""),
+                ListItem::new(Span::styled("── Workspace ──", s.accent)),
+                ListItem::new("  Edit Main Workspace Apps →"),
+                ListItem::new("  Edit App Bar Apps →"),
+                ListItem::new(""),
+                ListItem::new(Span::styled("── Display ──", s.accent)),
+                ListItem::new(sys_toggle),
+                ListItem::new(sys_default),
+                ListItem::new("  Customize Top Bar →"),
+                ListItem::new(""),
+                ListItem::new(Span::styled("── Data ──", s.accent)),
+                ListItem::new("  Import / Export .cheat →"),
+                ListItem::new(""),
+                ListItem::new(Span::styled("── System ──", s.accent)),
+                ListItem::new("  Re-run Onboarding Wizard →"),
+                ListItem::new(""),
+                ListItem::new("  ← Close Settings"),
+            ];
+
+            // Map visual index → action index (skip non-selectable rows)
+            let selectable: Vec<usize> = vec![2, 3, 6, 7, 8, 11, 14, 16];
+            let sel_visual = selectable.get(app.options_index).copied().unwrap_or(2);
+
+            let mut state = ratatui::widgets::ListState::default();
+            state.select(Some(sel_visual));
+
+            let list = List::new(items)
+                .block(s.popup_block(" ⚙ Settings "))
+                .highlight_style(s.active)
+                .highlight_symbol("▸ ");
+            f.render_stateful_widget(list, area, &mut state);
+            render_hint(f, area, "↑↓ Navigate  │  Enter Select  │  Esc Close", s.focus_border);
+        }
+
+        // ── Theme Selector ──────────────────────────────────────────────
         AppMode::ThemePopup => {
             let area = centered_rect(30, 40, size);
             f.render_widget(Clear, area);
-            let items: Vec<ListItem> = app
-                .themes
-                .iter()
-                .map(|t| {
-                    ListItem::new(format!("  {}  ", t.name))
-                        .style(Style::default().fg(theme.text_normal))
-                })
+            let items: Vec<ListItem> = app.themes.iter()
+                .map(|t| ListItem::new(format!("  {}  ", t.name)).style(Style::default().fg(s.normal_fg)))
                 .collect();
             let list = List::new(items)
-                .block(popup_block.title(" Select Theme "))
-                .highlight_style(active_style)
-                .highlight_symbol(">> ");
+                .block(s.popup_block(" 🎨 Select Theme "))
+                .highlight_style(s.active)
+                .highlight_symbol("▸ ");
             f.render_stateful_widget(list, area, &mut app.theme_state);
         }
 
+        // ── Quit Confirmation ───────────────────────────────────────────
         AppMode::Quitting => {
             let area = centered_rect(40, 20, size);
             f.render_widget(Clear, area);
-            let (yes_style, no_style) = if app.quit_index == 1 {
-                (active_style, inactive_green)
-            } else {
-                (inactive_green, active_style)
-            };
             let content = vec![
                 Line::from(""),
-                Line::from("Are you sure you want to quit?"),
+                Line::from("  Are you sure you want to quit?"),
                 Line::from(""),
-                Line::from(vec![
-                    Span::styled(" [Y]es ", yes_style),
-                    Span::raw("   /   "),
-                    Span::styled(" [N]o ", no_style),
-                ]),
+                Line::from(s.yes_no_spans(app.quit_index)),
             ];
-            let p = Paragraph::new(content)
-                .alignment(Alignment::Center)
-                .block(popup_block.title(" Exit Confirmation "));
+            let p = Paragraph::new(content).alignment(Alignment::Center)
+                .block(s.popup_block(" Exit Confirmation "));
             f.render_widget(p, area);
         }
 
+        // ── Help ────────────────────────────────────────────────────────
         AppMode::HelpPopup => {
-            let area = centered_rect(60, 60, size);
+            let area = centered_rect(60, 65, size);
             f.render_widget(Clear, area);
+            let section = |title: &str| -> Line {
+                Line::from(Span::styled(format!("──── {} ────", title), s.accent))
+            };
             let help_lines = vec![
                 Line::from(""),
-                Line::from(Span::styled(
-                    "──── Navigation ────",
-                    Style::default().fg(theme.text_accent).add_modifier(Modifier::BOLD),
-                )),
-                Line::from("  Tab          Switch pane (Status → Workspace → AppBar)"),
+                section("Navigation"),
+                Line::from("  Tab          Cycle panes (Status → Workspace → AppBar)"),
                 Line::from("  ↑↓ / j k     Navigate lists"),
                 Line::from("  ←→ / h l     Navigate status bar & app bar"),
                 Line::from("  Enter        Launch app / Confirm action"),
                 Line::from("  1-9          Launch app bar shortcut"),
                 Line::from(""),
-                Line::from(Span::styled(
-                    "──── Actions ────",
-                    Style::default().fg(theme.text_accent).add_modifier(Modifier::BOLD),
-                )),
+                section("Actions"),
                 Line::from("  Esc          Open settings menu"),
                 Line::from("  q            Quit (with confirmation)"),
                 Line::from("  t            Cycle theme"),
                 Line::from("  f            Toggle system info panel"),
                 Line::from("  ? / F1       Show this help"),
                 Line::from(""),
-                Line::from(Span::styled(
-                    "──── Universal ────",
-                    Style::default().fg(theme.text_accent).add_modifier(Modifier::BOLD),
-                )),
+                section("Universal"),
                 Line::from("  Esc          Go back / Cancel"),
                 Line::from("  Enter        Confirm / Select"),
                 Line::from("  Backspace    Go back (same as Esc)"),
                 Line::from(""),
-                Line::from(Span::styled(
-                    "  Press Esc to close",
-                    Style::default().fg(theme.text_accent),
-                )),
             ];
             let p = Paragraph::new(help_lines)
-                .style(Style::default().fg(theme.text_normal))
-                .block(popup_block.title(" Keyboard Shortcuts "));
+                .style(Style::default().fg(s.normal_fg))
+                .block(s.popup_block(" ❓ Keyboard Shortcuts "));
             f.render_widget(p, area);
+            render_hint(f, area, "Press Esc to close", s.focus_border);
         }
 
-        AppMode::OptionsPopup => {
-            let area = centered_rect(50, 50, size);
-            f.render_widget(Clear, area);
-            let def_sys_text = if app.default_show_sys_info {
-                "[X] Default Show SysInfo"
-            } else {
-                "[ ] Default Show SysInfo"
-            };
-            let toggle_sys_text = if app.show_sys_info {
-                "[-] Toggle SysInfo (F)"
-            } else {
-                "[+] Toggle SysInfo (F)"
-            };
-            let items = vec![
-                ListItem::new(" Customize Main Workspace Apps -> "),
-                ListItem::new(" Customize App Bar Apps -> "),
-                ListItem::new(toggle_sys_text),
-                ListItem::new(def_sys_text),
-                ListItem::new(" Import/Export .cheat -> "),
-                ListItem::new(" Run Onboarding Setup -> "),
-                ListItem::new(" <- Back "),
-            ];
-            let list = List::new(items)
-                .block(popup_block.title(" Settings "))
-                .highlight_style(active_style)
-                .highlight_symbol(">> ");
-            f.render_stateful_widget(list, area, &mut app.options_state);
-        }
-
+        // ── Edit Main / App Bar ─────────────────────────────────────────
         AppMode::EditMain | AppMode::EditApp => {
             let is_main = app.mode == AppMode::EditMain;
             let area = centered_rect(70, 60, size);
             f.render_widget(Clear, area);
             let items_vec = if is_main { &app.items } else { &app.app_bar_items };
-            let list_items: Vec<ListItem> = items_vec
-                .iter()
-                .map(|item| ListItem::new(format!("{:<20} │ {}", item.name, item.desc)))
+            let list_items: Vec<ListItem> = items_vec.iter()
+                .map(|item| ListItem::new(format!("  {:<20} │ {}", item.name, item.desc))
+                    .style(Style::default().fg(s.normal_fg)))
                 .collect();
-            let title = if is_main {
-                " Customize Main Apps ([a]dd / [d]elete, Esc to back) "
-            } else {
-                " Customize App Bar ([a]dd / [d]elete, Esc to back) "
-            };
+            let title = if is_main { " ✏ Edit Workspace Apps " } else { " ✏ Edit App Bar " };
             let list = List::new(list_items)
-                .block(popup_block.title(title))
-                .highlight_style(active_style)
-                .highlight_symbol(">> ");
+                .block(s.popup_block(title))
+                .highlight_style(s.active)
+                .highlight_symbol("▸ ");
             f.render_stateful_widget(list, area, &mut app.options_state);
+            render_hint(f, area, "a: Add  │  d: Delete  │  Esc: Back", s.focus_border);
         }
 
+        // ── Delete Confirmation ─────────────────────────────────────────
         AppMode::DeleteConfirmMain | AppMode::DeleteConfirmApp => {
             let is_main = app.mode == AppMode::DeleteConfirmMain;
             let app_name = if is_main {
-                app.items[app.options_index].name.clone()
+                app.items.get(app.options_index).map(|i| i.name.clone()).unwrap_or_default()
             } else {
-                app.app_bar_items[app.options_index].name.clone()
+                app.app_bar_items.get(app.options_index).map(|i| i.name.clone()).unwrap_or_default()
             };
             let area = centered_rect(40, 20, size);
             f.render_widget(Clear, area);
-            let (yes_style, no_style) = if app.quit_index == 1 {
-                (active_style, inactive_green)
-            } else {
-                (inactive_green, active_style)
-            };
             let content = vec![
                 Line::from(""),
-                Line::from(format!("Delete app '{}'?", app_name)),
+                Line::from(format!("  Delete '{}'?", app_name)),
                 Line::from(""),
-                Line::from(vec![
-                    Span::styled(" [Y]es ", yes_style),
-                    Span::raw("   /   "),
-                    Span::styled(" [N]o ", no_style),
-                ]),
+                Line::from(s.yes_no_spans(app.quit_index)),
             ];
-            let p = Paragraph::new(content)
-                .alignment(Alignment::Center)
-                .block(popup_block.title(" Delete Confirmation "));
+            let p = Paragraph::new(content).alignment(Alignment::Center)
+                .block(s.popup_block(" Delete Confirmation "));
             f.render_widget(p, area);
         }
 
+        // ── Add App Steps ───────────────────────────────────────────────
         AppMode::AddMainStep(step) | AppMode::AddAppStep(step) => {
             let area = centered_rect(60, 20, size);
             f.render_widget(Clear, area);
-            let title = match step {
-                AddField::Name => " Add New App - Step 1: Name ",
-                AddField::Desc => " Add New App - Step 2: Description ",
-                AddField::Cmd => " Add New App - Step 3: Command ",
-            };
-            let label = match step {
-                AddField::Name => " Enter Name: ",
-                AddField::Desc => " Enter Description: ",
-                AddField::Cmd => " Enter System Command: ",
+            let (title, label) = match step {
+                AddField::Name => (" Add App — Step 1/3 ", "  Name: "),
+                AddField::Desc => (" Add App — Step 2/3 ", "  Description: "),
+                AddField::Cmd  => (" Add App — Step 3/3 ", "  Command: "),
             };
             let content = vec![
                 Line::from(""),
                 Line::from(vec![
-                    Span::styled(label, inactive_green),
-                    Span::raw(app.input_buffer.clone()),
-                    Span::raw("█"),
+                    Span::styled(label, Style::default().fg(Color::Green)),
+                    Span::raw(&app.input_buffer),
+                    Span::styled("█", Style::default().fg(s.focus_border)),
                 ]),
             ];
-            let p = Paragraph::new(content).block(popup_block.title(title));
+            let p = Paragraph::new(content).block(s.popup_block(title));
             f.render_widget(p, area);
+            render_hint(f, area, "Enter: Next  │  Esc: Cancel", s.focus_border);
         }
 
-        _ => {}
-    }
-
-    // ── Cheat file popups (rendered after other popups) ──────────────────
-    match app.mode {
+        // ── Import/Export Menu ───────────────────────────────────────────
         AppMode::ImportExportMenu => {
-            let area = centered_rect(50, 40, size);
+            let area = centered_rect(50, 30, size);
             f.render_widget(Clear, area);
-            let border = Style::default().fg(theme.focus_border);
-            let block = Block::default()
-                .borders(Borders::ALL)
-                .border_style(border)
-                .style(Style::default().bg(Color::Black));
-
             let items = vec![
-                ListItem::new(" 📥 Import .cheat file -> "),
-                ListItem::new(" 📤 Export workspace to .cheat -> "),
-                ListItem::new(" <- Back "),
+                ListItem::new("  📥 Import .cheat file →"),
+                ListItem::new("  📤 Export workspace to .cheat →"),
+                ListItem::new("  ← Back"),
             ];
             let list = List::new(items)
-                .block(block.title(" Import / Export "))
-                .highlight_style(active_style)
-                .highlight_symbol(">> ");
+                .block(s.popup_block(" Import / Export "))
+                .highlight_style(s.active)
+                .highlight_symbol("▸ ");
             f.render_stateful_widget(list, area, &mut app.options_state);
 
             if !app.cheat_status.is_empty() {
-                let hint_area = Rect {
-                    x: area.x,
-                    y: area.y + area.height.saturating_sub(1),
-                    width: area.width,
-                    height: 1,
-                };
-                let hint = Paragraph::new(app.cheat_status.as_str())
-                    .style(Style::default().fg(theme.text_accent))
-                    .alignment(Alignment::Center);
-                f.render_widget(hint, hint_area);
+                render_hint(f, area, &app.cheat_status, s.focus_border);
             }
         }
 
+        // ── Cheat File Browser ──────────────────────────────────────────
         AppMode::CheatBrowser => {
             let area = centered_rect(70, 60, size);
             f.render_widget(Clear, area);
-            let border = Style::default().fg(theme.focus_border);
-            let block = Block::default()
-                .borders(Borders::ALL)
-                .border_style(border)
-                .style(Style::default().bg(Color::Black));
 
             if app.cheat_files.is_empty() {
                 let content = vec![
@@ -507,13 +453,12 @@ fn draw_popup(f: &mut Frame, app: &mut MenuApp, size: Rect, active_style: Style)
                     Line::from(format!("    • {}", crate::cheat::tui_center_cheat_dir().display())),
                     Line::from(""),
                     Line::from("  Place .cheat files in either directory and try again."),
-                    Line::from(""),
-                    Line::from(Span::styled("  Press Esc to go back", Style::default().fg(theme.text_accent))),
                 ];
                 let p = Paragraph::new(content)
-                    .block(block.title(" Import .cheat "))
-                    .style(Style::default().fg(theme.text_normal));
+                    .style(Style::default().fg(s.normal_fg))
+                    .block(s.popup_block(" Import .cheat "));
                 f.render_widget(p, area);
+                render_hint(f, area, "Esc: Back", s.focus_border);
             } else {
                 let items: Vec<ListItem> = app.cheat_files.iter().map(|path| {
                     let name = path.file_name().unwrap_or_default().to_string_lossy();
@@ -521,61 +466,65 @@ fn draw_popup(f: &mut Frame, app: &mut MenuApp, size: Rect, active_style: Style)
                     ListItem::new(format!("  {}  ({})", name, dir))
                 }).collect();
                 let list = List::new(items)
-                    .block(block.title(" Select .cheat file to import "))
-                    .highlight_style(active_style)
-                    .highlight_symbol(">> ");
+                    .block(s.popup_block(" Select .cheat file "))
+                    .highlight_style(s.active)
+                    .highlight_symbol("▸ ");
                 f.render_stateful_widget(list, area, &mut app.options_state);
 
-                // Status hint
-                let status_text = if app.cheat_status.is_empty() {
-                    "↑↓ Navigate  |  Enter: Import  |  Esc: Back".to_string()
+                let hint = if app.cheat_status.is_empty() {
+                    "↑↓ Navigate  │  Enter: Import  │  Esc: Back"
                 } else {
-                    app.cheat_status.clone()
+                    &app.cheat_status
                 };
-                let hint_area = Rect {
-                    x: area.x,
-                    y: area.y + area.height.saturating_sub(1),
-                    width: area.width,
-                    height: 1,
-                };
-                let hint = Paragraph::new(status_text)
-                    .style(Style::default().fg(theme.text_accent))
-                    .alignment(Alignment::Center);
-                f.render_widget(hint, hint_area);
+                render_hint(f, area, hint, s.focus_border);
             }
         }
 
+        // ── Export Confirmation ──────────────────────────────────────────
         AppMode::CheatExportConfirm => {
             let area = centered_rect(50, 25, size);
             f.render_widget(Clear, area);
-            let border = Style::default().fg(theme.focus_border);
-            let block = Block::default()
-                .borders(Borders::ALL)
-                .border_style(border)
-                .style(Style::default().bg(Color::Black));
-
-            let (yes_style, no_style) = if app.quit_index == 1 {
-                (active_style, Style::default().fg(Color::Green))
-            } else {
-                (Style::default().fg(Color::Green), active_style)
-            };
-
             let export_path = crate::cheat::tui_center_cheat_dir().join("workspace.cheat");
             let content = vec![
                 Line::from(""),
                 Line::from(format!("  Export {} workspace commands to:", app.items.len())),
                 Line::from(format!("  {}", export_path.display())),
                 Line::from(""),
-                Line::from(vec![
-                    Span::styled(" [Y]es ", yes_style),
-                    Span::raw("   /   "),
-                    Span::styled(" [N]o ", no_style),
-                ]),
+                Line::from(s.yes_no_spans(app.quit_index)),
             ];
-            let p = Paragraph::new(content)
-                .alignment(Alignment::Center)
-                .block(block.title(" Export to .cheat "));
+            let p = Paragraph::new(content).alignment(Alignment::Center)
+                .block(s.popup_block(" Export to .cheat "));
             f.render_widget(p, area);
+        }
+
+        // ── Customize Top Bar ───────────────────────────────────────────
+        AppMode::CustomizingStatusBar => {
+            let area = centered_rect(50, 55, size);
+            f.render_widget(Clear, area);
+
+            let items: Vec<ListItem> = app.config.status_modules.iter().map(|(module, visible)| {
+                let icon = if *visible { "✓" } else { "✗" };
+                let name = match module {
+                    StatusModule::Greeting      => "👋 Greeting & User",
+                    StatusModule::Time          => "🕒 Clock",
+                    StatusModule::Memory        => "💾 RAM Usage",
+                    StatusModule::Uptime        => "⏱ System Uptime",
+                    StatusModule::Theme         => "🎨 Theme Selector",
+                    StatusModule::SysInfoToggle => "🖥 SysInfo Toggle",
+                    StatusModule::Audio         => "🔊 Audio Volume",
+                    StatusModule::Network       => "🌐 Network Status",
+                    StatusModule::Power         => "🔋 Battery / Power",
+                };
+                let fg = if *visible { s.normal_fg } else { s.unfocus_border };
+                ListItem::new(format!("  [{}] {} ", icon, name)).style(Style::default().fg(fg))
+            }).collect();
+
+            let list = List::new(items)
+                .block(s.popup_block(" Customize Top Bar "))
+                .highlight_style(s.active)
+                .highlight_symbol("▸ ");
+            f.render_stateful_widget(list, area, &mut app.options_state);
+            render_hint(f, area, "Space: Toggle  │  Shift+J/K: Reorder  │  Esc: Back", s.focus_border);
         }
 
         _ => {}

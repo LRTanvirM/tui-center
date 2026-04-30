@@ -29,6 +29,7 @@ pub enum AppMode {
     ImportExportMenu,
     CheatBrowser,
     CheatExportConfirm,
+    CustomizingStatusBar,
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -59,11 +60,25 @@ pub struct SuggestedApp {
     pub is_appbar: bool,
 }
 
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub enum StatusModule {
+    Greeting,
+    Time,
+    Memory,
+    Uptime,
+    Theme,
+    SysInfoToggle,
+    Audio,
+    Network,
+    Power,
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Config {
     pub first_launch: bool,
     pub current_theme: String,
     pub default_show_sys_info: bool,
+    pub status_modules: Vec<(StatusModule, bool)>,
 }
 
 pub struct Theme {
@@ -138,4 +153,13 @@ pub struct MenuApp {
     pub cheat_file_index: usize,
     pub cheat_status: String,
     pub import_export_index: usize,
+
+    // Top Bar integration states
+    pub greeting_text: String,
+    pub user_name: String,
+    pub audio_vol: String,
+    pub network_info: String,
+    pub battery_info: String,
+    pub status_custom_index: usize,
+    pub last_refresh: std::time::Instant,
 }

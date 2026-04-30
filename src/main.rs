@@ -32,6 +32,9 @@ fn main() -> io::Result<()> {
     let mut should_quit = false;
 
     while !should_quit {
+        if app.last_refresh.elapsed() >= std::time::Duration::from_secs(2) {
+            app.refresh_status_bar_data();
+        }
         sys.refresh_all();
         terminal.draw(|f| ui::ui(f, &sys, &mut app))?;
 
