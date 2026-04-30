@@ -6,6 +6,65 @@ A high-performance, themeable terminal dashboard for Linux power users.
 
 TUI Control Center is a feature-rich terminal interface built with **Rust** and **Ratatui** that transforms your terminal into a fully interactive dashboard environment. It provides real-time system monitoring, application launching, and deep customization — all while maintaining exceptional performance and minimal resource usage.
 
+## 🚀 Installation
+
+### ⚡ Option 1: Automated Installation (Recommended)
+
+```bash
+curl -sSf https://raw.githubusercontent.com/LRTanvirM/tui-center/master/install.sh | bash
+```
+
+The installer automatically detects your Linux distribution, installs dependencies, compiles, and installs the binary system-wide.
+
+### 📦 Option 2: Clone & Install
+
+```bash
+git clone https://github.com/LRTanvirM/tui-center.git
+cd tui-center
+chmod +x install.sh
+./install.sh
+```
+
+### 🔧 Option 3: Manual Installation
+
+**1. Clone the repository:**
+
+```bash
+git clone https://github.com/LRTanvirM/tui-center.git
+cd tui-center
+```
+
+**2. Install system dependencies:**
+
+```bash
+# Arch Linux / Manjaro
+sudo pacman -S --needed curl fastfetch
+
+# Debian / Ubuntu
+sudo apt update && sudo apt install -y curl fastfetch
+
+# Fedora / RHEL
+sudo dnf install -y curl fastfetch
+
+# openSUSE
+sudo zypper install -y curl fastfetch
+```
+
+**3. Install Rust (if not already installed):**
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
+```
+
+**4. Compile and install:**
+
+```bash
+cargo build --release
+sudo cp target/release/tui-center /usr/local/bin/
+sudo chmod +x /usr/local/bin/tui-center
+```
+
 ## ✨ Features
 
 ### 🧭 Dashboard
@@ -35,39 +94,51 @@ The top bar is fully modular — each widget can be toggled on/off and reordered
 Twelve built-in high-contrast themes with instant switching (`t` key):
 
 - **Nord** — Cyan accent
+  
   ![Nord Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/nord.png)
 
 - **Dracula** — Magenta accent
+  
   ![Dracula Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/dracula.png)
 
 - **Gruvbox** — Yellow accent
+  
   ![Gruvbox Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/gruvbox.png)
 
 - **Catppuccin Mocha** — Mauve accent (Dark)
+  
   ![Catppuccin Mocha Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/catppuccin-mocha.png)
 
 - **Catppuccin Macchiato** — Blue accent (Medium Dark)
+  
   ![Catppuccin Macchiato Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/catppuccin-macchiato.png)
 
 - **Catppuccin Frappé** — Pink accent (Soft Dark)
+  
   ![Catppuccin Frappé Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/catppuccin-frappe.png)
 
 - **Catppuccin Latte** — Teal accent (Light)
+  
   ![Catppuccin Latte Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/catppuccin-latte.png)
 
 - **Tokyo Night** — Purple accent
+  
   ![Tokyo Night Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/tokyo-night.png)
 
 - **Solarized Dark** — Cyan accent
+  
   ![Solarized Dark Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/solarized-dark.png)
 
 - **Solarized Light** — Cyan accent
+  
   ![Solarized Light Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/solarized-light.png)
 
 - **Monokai** — Pink/Green accent
+  
   ![Monokai Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/monokai.png)
 
 - **One Dark** — Blue/Purple accent
+  
   ![One Dark Theme Screenshot](https://raw.githubusercontent.com/LRTanvirM/tui-center/master/assets/one-dark.png)
 
 ### 🚀 Onboarding Wizard
@@ -132,64 +203,6 @@ Automatic detection and installation support for:
 
 > **Note:** All other TUI apps (btop, lazygit, yazi, etc.) are optional and can be installed through the onboarding wizard.
 
-## 🚀 Installation
-
-### ⚡ Option 1: Automated Installation (Recommended)
-
-```bash
-curl -sSf https://raw.githubusercontent.com/LRTanvirM/tui-center/master/install.sh | bash
-```
-
-The installer automatically detects your Linux distribution, installs dependencies, compiles, and installs the binary system-wide.
-
-### 📦 Option 2: Clone & Install
-
-```bash
-git clone https://github.com/LRTanvirM/tui-center.git
-cd tui-center
-chmod +x install.sh
-./install.sh
-```
-
-### 🔧 Option 3: Manual Installation
-
-**1. Clone the repository:**
-
-```bash
-git clone https://github.com/LRTanvirM/tui-center.git
-cd tui-center
-```
-
-**2. Install system dependencies:**
-
-```bash
-# Arch Linux / Manjaro
-sudo pacman -S --needed curl fastfetch
-
-# Debian / Ubuntu
-sudo apt update && sudo apt install -y curl fastfetch
-
-# Fedora / RHEL
-sudo dnf install -y curl fastfetch
-
-# openSUSE
-sudo zypper install -y curl fastfetch
-```
-
-**3. Install Rust (if not already installed):**
-
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-source "$HOME/.cargo/env"
-```
-
-**4. Compile and install:**
-
-```bash
-cargo build --release
-sudo cp target/release/tui-center /usr/local/bin/
-sudo chmod +x /usr/local/bin/tui-center
-```
 
 ## ⌨️ Keyboard Controls
 
