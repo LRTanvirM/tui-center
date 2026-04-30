@@ -28,8 +28,13 @@ pub fn save_config(config: &Config, path: &PathBuf) -> io::Result<()> {
     Ok(())
 }
 
-/// Detects the Linux distribution by parsing `/etc/os-release`.
+/// Detects the OS/distribution by parsing `/etc/os-release` or checking for macOS.
 pub fn detect_distro() -> String {
+    // macOS detection
+    if cfg!(target_os = "macos") {
+        return "macos".to_string();
+    }
+
     if let Ok(content) = fs::read_to_string("/etc/os-release") {
         if content.contains("ID=arch") || content.contains("ID_LIKE=arch") {
             return "arch".to_string();
@@ -39,6 +44,10 @@ pub fn detect_distro() -> String {
             return "debian".to_string();
         } else if content.contains("ID=fedora") || content.contains("ID_LIKE=fedora") {
             return "fedora".to_string();
+        } else if content.contains("ID=\"opensuse") || content.contains("ID_LIKE=\"suse") || content.contains("ID=opensuse") {
+            return "opensuse".to_string();
+        } else if content.contains("ID=void") {
+            return "void".to_string();
         }
     }
     "unknown".to_string()

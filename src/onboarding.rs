@@ -290,8 +290,37 @@ fn install_selected_packages(app: &mut MenuApp) {
             .arg(format!("sudo dnf install -y {}", pkg_list))
             .output();
         status_lines.push(format!("Attempted install via dnf: {}", pkg_list));
+    } else if app.distro_id == "opensuse" {
+        let _ = ProcessCommand::new("sh")
+            .arg("-c")
+            .arg(format!("sudo zypper install -y {}", pkg_list))
+            .output();
+        status_lines.push(format!("Attempted install via zypper: {}", pkg_list));
+    } else if app.distro_id == "void" {
+        let _ = ProcessCommand::new("sh")
+            .arg("-c")
+            .arg(format!("sudo xbps-install -y {}", pkg_list))
+            .output();
+        status_lines.push(format!("Attempted install via xbps: {}", pkg_list));
+    } else if app.distro_id == "macos" {
+        // Check if brew is available
+        let brew_ok = ProcessCommand::new("sh")
+            .arg("-c")
+            .arg("command -v brew")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+        if brew_ok {
+            let _ = ProcessCommand::new("sh")
+                .arg("-c")
+                .arg(format!("brew install {}", pkg_list))
+                .output();
+            status_lines.push(format!("Attempted install via brew: {}", pkg_list));
+        } else {
+            status_lines.push("✗ Homebrew not found. Install it from https://brew.sh".to_string());
+        }
     } else {
-        status_lines.push("Unknown distro — skipping package installation.".to_string());
+        status_lines.push(format!("Unknown distro '{}' — skipping package install. Install manually.", app.distro_id));
     }
 
     app.install_status = status_lines.join("\n");

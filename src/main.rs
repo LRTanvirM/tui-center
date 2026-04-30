@@ -77,6 +77,12 @@ fn spawn_child(
     let _ = disable_raw_mode();
     let _ = stdout().execute(LeaveAlternateScreen);
 
+    // Show return hint
+    eprintln!("\x1b[36m┌─────────────────────────────────────────────┐\x1b[0m");
+    eprintln!("\x1b[36m│  TUI Center → launching: {:<20}│\x1b[0m", cmd.chars().take(20).collect::<String>());
+    eprintln!("\x1b[36m│  Exit the app to return to TUI Center       │\x1b[0m");
+    eprintln!("\x1b[36m└─────────────────────────────────────────────┘\x1b[0m");
+
     let mut child = ProcessCommand::new("sh").arg("-c").arg(cmd).spawn()?;
     let _ = child.wait();
 

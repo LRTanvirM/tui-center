@@ -124,10 +124,11 @@ impl MenuApp {
 
     /// Builds the list of suggested onboarding apps with distro-specific repo notes.
     fn build_suggested_apps(is_arch: bool, distro_id: &str) -> Vec<SuggestedApp> {
+        // ── Distro-aware repo availability notes ────────────────────────
         let note_aur = if is_arch {
             String::new()
         } else {
-            "⚠ AUR only (Arch); not in this distro's repos".to_string()
+            "⚠ AUR only; not in this distro's repos".to_string()
         };
         let note_aur_ppa = if is_arch {
             String::new()
@@ -141,22 +142,51 @@ impl MenuApp {
         } else {
             "⚠ Arch-only (pacman frontend)".to_string()
         };
+        let note_cargo = if is_arch {
+            String::new()
+        } else {
+            "⚠ Install via: cargo install <name>".to_string()
+        };
+        let note_go = if is_arch {
+            String::new()
+        } else {
+            "⚠ Install via go install or release binary".to_string()
+        };
 
         vec![
-            // ── Workspace apps ──
-            SuggestedApp { name: "Weather".into(), description: "Show weather info".into(), command: "curl -s wttr.in?format=3".into(), selected: true, repo_note: String::new(), is_appbar: false },
-            SuggestedApp { name: "btop".into(), description: "System monitor".into(), command: "btop".into(), selected: true, repo_note: String::new(), is_appbar: false },
-            SuggestedApp { name: "htop".into(), description: "Process viewer".into(), command: "htop".into(), selected: false, repo_note: String::new(), is_appbar: false },
-            SuggestedApp { name: "ranger".into(), description: "TUI file manager".into(), command: "ranger".into(), selected: false, repo_note: String::new(), is_appbar: false },
-            SuggestedApp { name: "termusic".into(), description: "Terminal music player".into(), command: "termusic".into(), selected: false, repo_note: note_aur.clone(), is_appbar: false },
-            SuggestedApp { name: "cava".into(), description: "Audio visualiser".into(), command: "cava".into(), selected: false, repo_note: note_aur_ppa.clone(), is_appbar: false },
-            SuggestedApp { name: "pacseek".into(), description: "Package search TUI".into(), command: "pacseek".into(), selected: false, repo_note: note_pacseek, is_appbar: false },
-            SuggestedApp { name: "viu".into(), description: "Terminal image viewer".into(), command: "viu".into(), selected: false, repo_note: note_aur.clone(), is_appbar: false },
-            SuggestedApp { name: "newsboat".into(), description: "RSS/Atom feed reader".into(), command: "newsboat".into(), selected: false, repo_note: String::new(), is_appbar: false },
+            // ═══ FILE & DISK ═══════════════════════════════════════════
+            SuggestedApp { name: "yazi".into(), description: "Blazing fast file manager (Rust)".into(), command: "yazi".into(), selected: false, repo_note: note_cargo.clone(), is_appbar: false },
+            SuggestedApp { name: "ranger".into(), description: "TUI file manager (Python)".into(), command: "ranger".into(), selected: false, repo_note: String::new(), is_appbar: false },
+            SuggestedApp { name: "ncdu".into(), description: "Disk usage analyzer".into(), command: "ncdu".into(), selected: false, repo_note: String::new(), is_appbar: false },
+            SuggestedApp { name: "dust".into(), description: "Intuitive disk usage (du + rust)".into(), command: "dust".into(), selected: false, repo_note: note_cargo.clone(), is_appbar: false },
+            SuggestedApp { name: "fzf".into(), description: "Fuzzy finder for files & history".into(), command: "fzf".into(), selected: true, repo_note: String::new(), is_appbar: false },
+            SuggestedApp { name: "zoxide".into(), description: "Smarter cd (z) command".into(), command: "zoxide query -ls".into(), selected: false, repo_note: String::new(), is_appbar: false },
+
+            // ═══ PRODUCTIVITY ══════════════════════════════════════════
+            SuggestedApp { name: "navi".into(), description: "Interactive cheatsheet browser".into(), command: "navi".into(), selected: false, repo_note: note_cargo.clone(), is_appbar: false },
+            SuggestedApp { name: "lazygit".into(), description: "Git TUI client".into(), command: "lazygit".into(), selected: false, repo_note: note_go.clone(), is_appbar: false },
+            SuggestedApp { name: "lazydocker".into(), description: "Docker management TUI".into(), command: "lazydocker".into(), selected: false, repo_note: note_go.clone(), is_appbar: false },
             SuggestedApp { name: "calcurse".into(), description: "Calendar & scheduler".into(), command: "calcurse".into(), selected: false, repo_note: String::new(), is_appbar: false },
-            SuggestedApp { name: "ncmpcpp".into(), description: "MPD music client".into(), command: "ncmpcpp".into(), selected: false, repo_note: String::new(), is_appbar: false },
+            SuggestedApp { name: "newsboat".into(), description: "RSS/Atom feed reader".into(), command: "newsboat".into(), selected: false, repo_note: String::new(), is_appbar: false },
             SuggestedApp { name: "neomutt".into(), description: "Email client".into(), command: "neomutt".into(), selected: false, repo_note: String::new(), is_appbar: false },
-            // ── App-bar apps ──
+
+            // ═══ SYSTEM MONITORING ═════════════════════════════════════
+            SuggestedApp { name: "btop".into(), description: "Resource monitor (C++)".into(), command: "btop".into(), selected: true, repo_note: String::new(), is_appbar: false },
+            SuggestedApp { name: "htop".into(), description: "Process viewer".into(), command: "htop".into(), selected: false, repo_note: String::new(), is_appbar: false },
+            SuggestedApp { name: "fastfetch".into(), description: "System info fetch tool".into(), command: "fastfetch".into(), selected: true, repo_note: String::new(), is_appbar: false },
+            SuggestedApp { name: "alsamixer".into(), description: "Audio mixer (ALSA)".into(), command: "alsamixer".into(), selected: false, repo_note: String::new(), is_appbar: false },
+            SuggestedApp { name: "nmtui".into(), description: "Network Manager TUI".into(), command: "nmtui".into(), selected: false, repo_note: String::new(), is_appbar: false },
+            SuggestedApp { name: "Weather".into(), description: "Show weather info (curl)".into(), command: "curl -s wttr.in?format=3".into(), selected: true, repo_note: String::new(), is_appbar: false },
+
+            // ═══ MEDIA & MISC ══════════════════════════════════════════
+            SuggestedApp { name: "termusic".into(), description: "Terminal music player".into(), command: "termusic".into(), selected: false, repo_note: note_aur.clone(), is_appbar: false },
+            SuggestedApp { name: "ncmpcpp".into(), description: "MPD music client".into(), command: "ncmpcpp".into(), selected: false, repo_note: String::new(), is_appbar: false },
+            SuggestedApp { name: "cava".into(), description: "Audio visualiser".into(), command: "cava".into(), selected: false, repo_note: note_aur_ppa, is_appbar: false },
+            SuggestedApp { name: "viu".into(), description: "Terminal image viewer".into(), command: "viu".into(), selected: false, repo_note: note_aur.clone(), is_appbar: false },
+            SuggestedApp { name: "ytfzf".into(), description: "YouTube from terminal (fzf)".into(), command: "ytfzf".into(), selected: false, repo_note: note_aur, is_appbar: false },
+            SuggestedApp { name: "pacseek".into(), description: "Package search TUI".into(), command: "pacseek".into(), selected: false, repo_note: note_pacseek, is_appbar: false },
+
+            // ═══ APP BAR (quick-launch) ════════════════════════════════
             SuggestedApp { name: "Browser".into(), description: "Web browser".into(), command: "xdg-open http://".into(), selected: true, repo_note: String::new(), is_appbar: true },
             SuggestedApp { name: "Files".into(), description: "File manager".into(), command: "xdg-open .".into(), selected: true, repo_note: String::new(), is_appbar: true },
             SuggestedApp { name: "Terminal".into(), description: "Extra terminal".into(), command: "$TERMINAL".into(), selected: true, repo_note: String::new(), is_appbar: true },
