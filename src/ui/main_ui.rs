@@ -364,6 +364,7 @@ fn draw_popup(f: &mut Frame, app: &mut MenuApp, size: Rect, active_style: Style)
                 ListItem::new(" Customize App Bar Apps -> "),
                 ListItem::new(toggle_sys_text),
                 ListItem::new(def_sys_text),
+                ListItem::new(" Import/Export .cheat -> "),
                 ListItem::new(" Run Onboarding Setup -> "),
                 ListItem::new(" <- Back "),
             ];
@@ -447,6 +448,133 @@ fn draw_popup(f: &mut Frame, app: &mut MenuApp, size: Rect, active_style: Style)
                 ]),
             ];
             let p = Paragraph::new(content).block(popup_block.title(title));
+            f.render_widget(p, area);
+        }
+
+        _ => {}
+    }
+
+    // ── Cheat file popups (rendered after other popups) ──────────────────
+    match app.mode {
+        AppMode::ImportExportMenu => {
+            let area = centered_rect(50, 40, size);
+            f.render_widget(Clear, area);
+            let border = Style::default().fg(theme.focus_border);
+            let block = Block::default()
+                .borders(Borders::ALL)
+                .border_style(border)
+                .style(Style::default().bg(Color::Black));
+
+            let items = vec![
+                ListItem::new(" 📥 Import .cheat file -> "),
+                ListItem::new(" 📤 Export workspace to .cheat -> "),
+                ListItem::new(" <- Back "),
+            ];
+            let list = List::new(items)
+                .block(block.title(" Import / Export "))
+                .highlight_style(active_style)
+                .highlight_symbol(">> ");
+            f.render_stateful_widget(list, area, &mut app.options_state);
+
+            if !app.cheat_status.is_empty() {
+                let hint_area = Rect {
+                    x: area.x,
+                    y: area.y + area.height.saturating_sub(1),
+                    width: area.width,
+                    height: 1,
+                };
+                let hint = Paragraph::new(app.cheat_status.as_str())
+                    .style(Style::default().fg(theme.text_accent))
+                    .alignment(Alignment::Center);
+                f.render_widget(hint, hint_area);
+            }
+        }
+
+        AppMode::CheatBrowser => {
+            let area = centered_rect(70, 60, size);
+            f.render_widget(Clear, area);
+            let border = Style::default().fg(theme.focus_border);
+            let block = Block::default()
+                .borders(Borders::ALL)
+                .border_style(border)
+                .style(Style::default().bg(Color::Black));
+
+            if app.cheat_files.is_empty() {
+                let content = vec![
+                    Line::from(""),
+                    Line::from("  No .cheat files found in:"),
+                    Line::from(format!("    • {}", crate::cheat::default_cheat_dir().display())),
+                    Line::from(format!("    • {}", crate::cheat::tui_center_cheat_dir().display())),
+                    Line::from(""),
+                    Line::from("  Place .cheat files in either directory and try again."),
+                    Line::from(""),
+                    Line::from(Span::styled("  Press Esc to go back", Style::default().fg(theme.text_accent))),
+                ];
+                let p = Paragraph::new(content)
+                    .block(block.title(" Import .cheat "))
+                    .style(Style::default().fg(theme.text_normal));
+                f.render_widget(p, area);
+            } else {
+                let items: Vec<ListItem> = app.cheat_files.iter().map(|path| {
+                    let name = path.file_name().unwrap_or_default().to_string_lossy();
+                    let dir = path.parent().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+                    ListItem::new(format!("  {}  ({})", name, dir))
+                }).collect();
+                let list = List::new(items)
+                    .block(block.title(" Select .cheat file to import "))
+                    .highlight_style(active_style)
+                    .highlight_symbol(">> ");
+                f.render_stateful_widget(list, area, &mut app.options_state);
+
+                // Status hint
+                let status_text = if app.cheat_status.is_empty() {
+                    "↑↓ Navigate  |  Enter: Import  |  Esc: Back".to_string()
+                } else {
+                    app.cheat_status.clone()
+                };
+                let hint_area = Rect {
+                    x: area.x,
+                    y: area.y + area.height.saturating_sub(1),
+                    width: area.width,
+                    height: 1,
+                };
+                let hint = Paragraph::new(status_text)
+                    .style(Style::default().fg(theme.text_accent))
+                    .alignment(Alignment::Center);
+                f.render_widget(hint, hint_area);
+            }
+        }
+
+        AppMode::CheatExportConfirm => {
+            let area = centered_rect(50, 25, size);
+            f.render_widget(Clear, area);
+            let border = Style::default().fg(theme.focus_border);
+            let block = Block::default()
+                .borders(Borders::ALL)
+                .border_style(border)
+                .style(Style::default().bg(Color::Black));
+
+            let (yes_style, no_style) = if app.quit_index == 1 {
+                (active_style, Style::default().fg(Color::Green))
+            } else {
+                (Style::default().fg(Color::Green), active_style)
+            };
+
+            let export_path = crate::cheat::tui_center_cheat_dir().join("workspace.cheat");
+            let content = vec![
+                Line::from(""),
+                Line::from(format!("  Export {} workspace commands to:", app.items.len())),
+                Line::from(format!("  {}", export_path.display())),
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled(" [Y]es ", yes_style),
+                    Span::raw("   /   "),
+                    Span::styled(" [N]o ", no_style),
+                ]),
+            ];
+            let p = Paragraph::new(content)
+                .alignment(Alignment::Center)
+                .block(block.title(" Export to .cheat "));
             f.render_widget(p, area);
         }
 

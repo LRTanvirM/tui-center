@@ -1,4 +1,5 @@
 mod app;
+mod cheat;
 mod config;
 mod handlers;
 mod onboarding;

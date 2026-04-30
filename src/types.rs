@@ -26,6 +26,9 @@ pub enum AppMode {
     OnboardingApps,
     OnboardingInstalling,
     OnboardingComplete,
+    ImportExportMenu,
+    CheatBrowser,
+    CheatExportConfirm,
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -129,4 +132,10 @@ pub struct MenuApp {
     pub aur_helper_index: usize,
     pub onboarding_focus: usize,
     pub install_status: String,
+
+    // Cheat file integration
+    pub cheat_files: Vec<PathBuf>,
+    pub cheat_file_index: usize,
+    pub cheat_status: String,
+    pub import_export_index: usize,
 }

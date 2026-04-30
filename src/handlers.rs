@@ -1,4 +1,5 @@
 use crossterm::event::KeyCode;
+use crate::cheat;
 use crate::types::*;
 
 /// Handles key events for all normal-mode states (Normal, ThemePopup, Quitting,
@@ -136,7 +137,7 @@ pub fn handle_normal_key(
         },
 
         AppMode::OptionsPopup => {
-            let opts_len = 6;
+            let opts_len = 7;
             match code {
                 KeyCode::Esc | KeyCode::Backspace => app.mode = AppMode::Normal,
                 KeyCode::Up | KeyCode::Char('k') => app.prev_opt(opts_len),
@@ -157,8 +158,14 @@ pub fn handle_normal_key(
                         app.default_show_sys_info = !app.default_show_sys_info;
                         app.show_sys_info = app.default_show_sys_info;
                     }
-                    4 => app.mode = AppMode::OnboardingStart,
-                    5 => app.mode = AppMode::Normal,
+                    4 => {
+                        app.mode = AppMode::ImportExportMenu;
+                        app.import_export_index = 0;
+                        app.options_index = 0;
+                        app.options_state.select(Some(0));
+                    }
+                    5 => app.mode = AppMode::OnboardingStart,
+                    6 => app.mode = AppMode::Normal,
                     _ => {}
                 },
                 _ => {}
@@ -293,6 +300,117 @@ pub fn handle_normal_key(
                         app.options_state.select(Some(0));
                     }
                 },
+                _ => {}
+            }
+        }
+
+        AppMode::ImportExportMenu => {
+            let opts_len = 3; // Import, Export, Back
+            match code {
+                KeyCode::Esc | KeyCode::Backspace => {
+                    app.mode = AppMode::OptionsPopup;
+                    app.options_index = 4;
+                    app.options_state.select(Some(4));
+                }
+                KeyCode::Up | KeyCode::Char('k') => app.prev_opt(opts_len),
+                KeyCode::Down | KeyCode::Char('j') => app.next_opt(opts_len),
+                KeyCode::Enter => match app.options_index {
+                    0 => {
+                        // Import — discover .cheat files from navi + tui-center dirs
+                        let mut files = cheat::discover_cheat_files(&cheat::default_cheat_dir());
+                        files.extend(cheat::discover_cheat_files(&cheat::tui_center_cheat_dir()));
+                        app.cheat_files = files;
+                        app.cheat_file_index = 0;
+                        app.options_index = 0;
+                        app.options_state.select(Some(0));
+                        app.cheat_status.clear();
+                        app.mode = AppMode::CheatBrowser;
+                    }
+                    1 => {
+                        // Export — confirm dialog
+                        app.quit_index = 0;
+                        app.mode = AppMode::CheatExportConfirm;
+                    }
+                    2 => {
+                        // Back
+                        app.mode = AppMode::OptionsPopup;
+                        app.options_index = 4;
+                        app.options_state.select(Some(4));
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
+
+        AppMode::CheatBrowser => {
+            match code {
+                KeyCode::Esc | KeyCode::Backspace => {
+                    app.mode = AppMode::ImportExportMenu;
+                    app.options_index = 0;
+                    app.options_state.select(Some(0));
+                }
+                KeyCode::Up | KeyCode::Char('k') => app.prev_opt(app.cheat_files.len()),
+                KeyCode::Down | KeyCode::Char('j') => app.next_opt(app.cheat_files.len()),
+                KeyCode::Enter => {
+                    if !app.cheat_files.is_empty() {
+                        let path = app.cheat_files[app.options_index].clone();
+                        match cheat::import_cheat_file(&path) {
+                            Ok(entries) => {
+                                let count = entries.len();
+                                for entry in &entries {
+                                    app.items.push(cheat::cheat_to_app_entry(entry));
+                                }
+                                app.cheat_status = format!(
+                                    "✓ Imported {} commands from {}",
+                                    count,
+                                    path.file_name().unwrap_or_default().to_string_lossy()
+                                );
+                            }
+                            Err(e) => {
+                                app.cheat_status = format!(
+                                    "✗ Failed to import {}: {}",
+                                    path.file_name().unwrap_or_default().to_string_lossy(),
+                                    e
+                                );
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        AppMode::CheatExportConfirm => {
+            match code {
+                KeyCode::Esc | KeyCode::Backspace | KeyCode::Char('n') | KeyCode::Char('N') => {
+                    app.mode = AppMode::ImportExportMenu;
+                    app.options_index = 1;
+                    app.options_state.select(Some(1));
+                }
+                KeyCode::Enter | KeyCode::Char('y') | KeyCode::Char('Y') => {
+                    let dir = cheat::tui_center_cheat_dir();
+                    let _ = std::fs::create_dir_all(&dir);
+                    let path = dir.join("workspace.cheat");
+                    match cheat::export_cheat_file(&path, &app.items, "tui-center, workspace") {
+                        Ok(()) => {
+                            app.cheat_status = format!(
+                                "✓ Exported {} commands to {}",
+                                app.items.len(),
+                                path.display()
+                            );
+                        }
+                        Err(e) => {
+                            app.cheat_status = format!("✗ Export failed: {}", e);
+                        }
+                    }
+                    app.mode = AppMode::ImportExportMenu;
+                    app.options_index = 1;
+                    app.options_state.select(Some(1));
+                }
+                KeyCode::Left | KeyCode::Right | KeyCode::Char('h') | KeyCode::Char('l') => {
+                    app.quit_index = if app.quit_index == 0 { 1 } else { 0 };
+                }
                 _ => {}
             }
         }
